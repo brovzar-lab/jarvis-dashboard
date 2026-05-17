@@ -4,10 +4,6 @@ declare global {
   }
 }
 
-const ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY || '';
-// Antoni voice — closest to a Jarvis-style male voice
-const ELEVENLABS_VOICE_ID = import.meta.env.VITE_ELEVENLABS_VOICE_ID || 'ErXwobaYiN019PkySvjV';
-
 let audioContext: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let currentAudio: HTMLAudioElement | null = null;
@@ -44,45 +40,31 @@ export function stopSpeaking(): void {
 
 export async function speak(text: string): Promise<void> {
   stopSpeaking();
-
-  if (ELEVENLABS_API_KEY && ELEVENLABS_API_KEY !== 'REPLACE_WITH_VALUE') {
-    await speakElevenLabs(text);
-  } else {
-    await speakBrowser(text);
-  }
+  await speakElevenLabs(text);
 }
 
 async function speakElevenLabs(text: string): Promise<void> {
   let res: Response;
   try {
-    res = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}/stream`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text,
-          model_id: 'eleven_turbo_v2_5',
-          voice_settings: {
-            stability: 0.75,
-            similarity_boost: 0.85,
-            style: 0.3,
-            use_speaker_boost: true,
-          },
-        }),
-      }
-    );
+    res = await fetch('/api/tts/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
   } catch {
-    console.warn('ElevenLabs TTS network error, falling back to browser TTS');
+    console.warn('TTS proxy network error, falling back to browser TTS');
+    await speakBrowser(text);
+    return;
+  }
+
+  if (res.status === 503) {
+    // TTS not configured server-side — fall back to browser TTS gracefully
     await speakBrowser(text);
     return;
   }
 
   if (!res.ok) {
-    console.warn('ElevenLabs TTS failed, falling back to browser TTS');
+    console.warn('TTS proxy error:', res.status, ', falling back to browser TTS');
     await speakBrowser(text);
     return;
   }
