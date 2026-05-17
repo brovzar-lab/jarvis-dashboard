@@ -1,11 +1,11 @@
 import type { Agent, Issue, DashboardData } from '../types';
 import { DEMO_DATA } from './demo-data';
 
-const COMPANY_ID = import.meta.env.VITE_PAPERCLIP_COMPANY_ID || '';
+const COMPANY_ID_ENV = import.meta.env.VITE_PAPERCLIP_COMPANY_ID || '';
 
 export const isDemoMode =
-  !COMPANY_ID ||
-  COMPANY_ID === 'REPLACE_WITH_VALUE';
+  !COMPANY_ID_ENV ||
+  COMPANY_ID_ENV === 'REPLACE_WITH_VALUE';
 
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`/api/paperclip?p=${encodeURIComponent(path)}`);
@@ -26,6 +26,21 @@ function extractArray<T>(raw: unknown, ...keys: string[]): T[] {
   return [];
 }
 
+async function discoverCompanyIds(): Promise<string[]> {
+  // Try dynamic discovery via /api/me/companies first
+  try {
+    const raw = await apiGet<unknown>('/api/me/companies');
+    const companies = extractArray<{ id: string }>(raw, 'companies', 'data');
+    const ids = companies.map(c => c.id).filter(Boolean);
+    if (ids.length > 0) return ids;
+  } catch {
+    // fall through to env var fallback
+  }
+
+  // Fall back to comma-separated env var
+  return COMPANY_ID_ENV.split(',').map(s => s.trim()).filter(Boolean);
+}
+
 interface InboxItem { id: string; identifier: string; title: string; status: string; priority: string; updatedAt?: string }
 
 export async function fetchDashboardData(): Promise<DashboardData> {
@@ -34,19 +49,45 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     return DEMO_DATA;
   }
 
-  const [agentsRes, inReviewRes, inboxRes] = await Promise.allSettled([
-    apiGet<unknown>(`/api/companies/${COMPANY_ID}/agents`),
-    apiGet<unknown>(`/api/companies/${COMPANY_ID}/issues?status=in_review&limit=20`),
-    apiGet<unknown>(`/api/agents/me/inbox-lite`),
+  const companyIds = await discoverCompanyIds();
+
+  // Fetch agents and issues from all companies in parallel
+  const [companyResults, inboxRes] = await Promise.allSettled([
+    Promise.all(companyIds.map(async (cid) => {
+      const [agentsRaw, inReviewRaw, activeRaw] = await Promise.all([
+        apiGet<unknown>(`/api/companies/${cid}/agents`).catch(() => []),
+        apiGet<unknown>(`/api/companies/${cid}/issues?status=in_review&limit=20`).catch(() => []),
+        apiGet<unknown>(`/api/companies/${cid}/issues?status=in_progress&limit=50`).catch(() => []),
+      ]);
+      return {
+        agents: extractArray<Agent>(agentsRaw, 'agents', 'data'),
+        inReview: extractArray<Issue>(inReviewRaw, 'issues', 'data'),
+        active: extractArray<Issue>(activeRaw, 'issues', 'data'),
+      };
+    })),
+    apiGet<unknown>('/api/agents/me/inbox-lite'),
   ]);
 
-  const agents: Agent[] = agentsRes.status === 'fulfilled'
-    ? extractArray<Agent>(agentsRes.value, 'agents', 'data')
-    : [];
+  // Merge results across companies (deduplicate by id)
+  const seenAgents = new Set<string>();
+  const seenIssues = new Set<string>();
+  const agents: Agent[] = [];
+  const inReviewIssues: Issue[] = [];
+  const activeIssues: Issue[] = [];
 
-  const inReviewIssues: Issue[] = inReviewRes.status === 'fulfilled'
-    ? extractArray<Issue>(inReviewRes.value, 'issues', 'data')
-    : [];
+  if (companyResults.status === 'fulfilled') {
+    for (const { agents: a, inReview: ir, active: ac } of companyResults.value) {
+      for (const agent of a) {
+        if (!seenAgents.has(agent.id)) { seenAgents.add(agent.id); agents.push(agent); }
+      }
+      for (const issue of ir) {
+        if (!seenIssues.has(issue.id)) { seenIssues.add(issue.id); inReviewIssues.push(issue); }
+      }
+      for (const issue of ac) {
+        if (!seenIssues.has(issue.id)) { seenIssues.add(issue.id); activeIssues.push(issue); }
+      }
+    }
+  }
 
   const inboxRaw = inboxRes.status === 'fulfilled'
     ? extractArray<InboxItem>(inboxRes.value, 'items', 'issues', 'data')
@@ -60,13 +101,6 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     priority: item.priority,
     updatedAt: item.updatedAt ?? new Date().toISOString(),
   }));
-
-  // fetch active issues for agents
-  const activeIssuesRaw = await apiGet<unknown>(
-    `/api/companies/${COMPANY_ID}/issues?status=in_progress&limit=50`
-  ).catch(() => []);
-
-  const activeIssues: Issue[] = extractArray<Issue>(activeIssuesRaw, 'issues', 'data');
 
   return { agents, inReviewIssues, myInbox, activeIssues };
 }
@@ -93,6 +127,7 @@ export function buildJarvisContext(data: DashboardData): string {
 
   return `CURRENT DASHBOARD STATE:
 Date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+Total agents (all companies): ${data.agents.length}
 Active agents: ${activeAgents.length}/${data.agents.length}
 
 AGENTS:
