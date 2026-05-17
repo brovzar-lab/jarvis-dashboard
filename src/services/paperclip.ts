@@ -13,10 +13,20 @@ async function apiGet<T>(path: string): Promise<T> {
   return res.json();
 }
 
-interface AgentsResponse { agents?: Agent[]; data?: Agent[] }
-interface IssuesResponse { issues?: Issue[]; data?: Issue[] }
-interface InboxItem { id: string; identifier: string; title: string; status: string; priority: string; updatedAt: string }
-interface InboxResponse { items?: InboxItem[]; issues?: Issue[]; data?: Issue[] }
+// Paperclip API returns direct arrays; some endpoints wrap in { agents/issues/items/data: [] }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractArray<T>(raw: unknown, ...keys: string[]): T[] {
+  if (Array.isArray(raw)) return raw as T[];
+  if (raw && typeof raw === 'object') {
+    for (const key of keys) {
+      const val = (raw as Record<string, unknown>)[key];
+      if (Array.isArray(val)) return val as T[];
+    }
+  }
+  return [];
+}
+
+interface InboxItem { id: string; identifier: string; title: string; status: string; priority: string; updatedAt?: string }
 
 export async function fetchDashboardData(): Promise<DashboardData> {
   if (isDemoMode) {
@@ -25,21 +35,21 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   }
 
   const [agentsRes, inReviewRes, inboxRes] = await Promise.allSettled([
-    apiGet<AgentsResponse>(`/api/companies/${COMPANY_ID}/agents`),
-    apiGet<IssuesResponse>(`/api/companies/${COMPANY_ID}/issues?status=in_review&limit=20`),
-    apiGet<InboxResponse>(`/api/agents/me/inbox-lite`),
+    apiGet<unknown>(`/api/companies/${COMPANY_ID}/agents`),
+    apiGet<unknown>(`/api/companies/${COMPANY_ID}/issues?status=in_review&limit=20`),
+    apiGet<unknown>(`/api/agents/me/inbox-lite`),
   ]);
 
   const agents: Agent[] = agentsRes.status === 'fulfilled'
-    ? (agentsRes.value.agents ?? agentsRes.value.data ?? [])
+    ? extractArray<Agent>(agentsRes.value, 'agents', 'data')
     : [];
 
   const inReviewIssues: Issue[] = inReviewRes.status === 'fulfilled'
-    ? (inReviewRes.value.issues ?? inReviewRes.value.data ?? [])
+    ? extractArray<Issue>(inReviewRes.value, 'issues', 'data')
     : [];
 
   const inboxRaw = inboxRes.status === 'fulfilled'
-    ? (inboxRes.value.items ?? inboxRes.value.issues ?? inboxRes.value.data ?? [])
+    ? extractArray<InboxItem>(inboxRes.value, 'items', 'issues', 'data')
     : [];
 
   const myInbox: Issue[] = inboxRaw.map((item) => ({
@@ -48,15 +58,15 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     title: item.title,
     status: item.status,
     priority: item.priority,
-    updatedAt: item.updatedAt,
+    updatedAt: item.updatedAt ?? new Date().toISOString(),
   }));
 
   // fetch active issues for agents
-  const activeIssuesRes = await apiGet<IssuesResponse>(
+  const activeIssuesRaw = await apiGet<unknown>(
     `/api/companies/${COMPANY_ID}/issues?status=in_progress&limit=50`
-  ).catch(() => ({ issues: [] as Issue[] }));
+  ).catch(() => []);
 
-  const activeIssues: Issue[] = (activeIssuesRes.issues ?? activeIssuesRes.data ?? []);
+  const activeIssues: Issue[] = extractArray<Issue>(activeIssuesRaw, 'issues', 'data');
 
   return { agents, inReviewIssues, myInbox, activeIssues };
 }
