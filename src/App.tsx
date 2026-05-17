@@ -56,8 +56,9 @@ export default function App() {
       addEntry('jarvis', response);
       setOrbState('speaking');
       await speak(response);
-    } catch {
-      const fallback = 'I encountered an error processing that request, sir.';
+    } catch (err) {
+      console.error('processQuery unexpected error:', err);
+      const fallback = 'I encountered an unexpected error, sir. Please try again.';
       addEntry('jarvis', fallback);
       setOrbState('speaking');
       await speak(fallback);

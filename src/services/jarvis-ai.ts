@@ -1,5 +1,3 @@
-const CLAUDE_API_KEY = import.meta.env.VITE_CLAUDE_API_KEY || '';
-
 const JARVIS_SYSTEM_PROMPT = `You are JARVIS — Just A Rather Very Intelligent System — the AI executive assistant for this company's Paperclip platform. You have direct access to the company's operational data in real time.
 
 Your personality:
@@ -28,37 +26,34 @@ export async function askJarvis(
   dashboardContext: string,
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>
 ): Promise<string> {
-  if (!CLAUDE_API_KEY || CLAUDE_API_KEY === 'REPLACE_WITH_VALUE') {
-    return generateFallbackResponse(userMessage, dashboardContext);
-  }
-
   const messages = [
     ...conversationHistory.slice(-6),
     { role: 'user' as const, content: `${dashboardContext}\n\nUser query: ${userMessage}` },
   ];
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': CLAUDE_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 300,
-      system: JARVIS_SYSTEM_PROMPT,
-      messages,
-    }),
-  });
+  try {
+    const res = await fetch('/api/claude/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 300,
+        system: JARVIS_SYSTEM_PROMPT,
+        messages,
+      }),
+    });
 
-  if (!res.ok) {
-    console.warn('Claude API error, using fallback');
+    if (!res.ok) {
+      console.warn('Claude API error:', res.status);
+      return generateFallbackResponse(userMessage, dashboardContext);
+    }
+
+    const data = await res.json();
+    return data.content?.[0]?.text ?? 'I was unable to process that query, sir.';
+  } catch (err) {
+    console.warn('Claude proxy request failed:', err);
     return generateFallbackResponse(userMessage, dashboardContext);
   }
-
-  const data = await res.json();
-  return data.content?.[0]?.text ?? 'I was unable to process that query, sir.';
 }
 
 function generateFallbackResponse(query: string, context: string): string {
@@ -73,7 +68,6 @@ function generateFallbackResponse(query: string, context: string): string {
   }
 
   if (lower.includes('review') || lower.includes('pending') || lower.includes('waiting')) {
-    const reviewLines = lines.filter(l => l.startsWith('- APPU-') || l.startsWith('- '));
     const reviewSection = context.includes('PENDING REVIEWS:')
       ? context.split('PENDING REVIEWS:')[1]?.split('\n\n')[0]?.trim()
       : '';
@@ -92,5 +86,5 @@ function generateFallbackResponse(query: string, context: string): string {
     return 'All systems are operational, sir. The engineering team is active and on track. No critical blockers detected at this time.';
   }
 
-  return `Understood, sir. I'm processing your request. Please note my full AI capabilities require the Claude API key to be configured for natural language analysis.`;
+  return `Understood, sir. I'm processing your request. For full natural language analysis, the AI backend must be configured.`;
 }
