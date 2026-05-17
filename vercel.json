@@ -2,7 +2,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/paperclip/:path*", "destination": "/api/paperclip/[...path]" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

@@ -8,7 +8,7 @@ export const isDemoMode =
   COMPANY_ID === 'REPLACE_WITH_VALUE';
 
 async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`/api/paperclip${path}`);
+  const res = await fetch(`/api/paperclip?p=${encodeURIComponent(path)}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
