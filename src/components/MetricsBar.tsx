@@ -12,7 +12,7 @@ export function MetricsBar({ data, lastUpdated }: Props) {
 
   return (
     <div
-      className="flex items-center gap-6 px-6 py-2 text-xs"
+      className="flex items-center gap-4 md:gap-6 px-3 md:px-6 py-2 text-xs overflow-x-auto"
       style={{ borderBottom: '1px solid rgba(0,212,255,0.08)', background: 'rgba(0,212,255,0.02)' }}
     >
       <div className="flex items-center gap-2">

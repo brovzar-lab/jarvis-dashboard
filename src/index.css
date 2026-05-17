@@ -209,3 +209,21 @@ body {
   letter-spacing: 2px;
   z-index: 999;
 }
+
+@media (min-width: 768px) {
+  .desktop-convo-panel {
+    max-height: calc(100vh - 430px);
+  }
+  .desktop-side-panel {
+    max-height: calc(100vh - 160px);
+    overflow-y: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .desktop-agents-panel {
+    max-height: calc(100vh - 160px);
+    overflow-y: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+}

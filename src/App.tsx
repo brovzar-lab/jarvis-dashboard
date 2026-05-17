@@ -11,7 +11,7 @@ import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { useDashboard } from './hooks/useDashboard';
 import { askJarvis } from './services/jarvis-ai';
 import { buildJarvisContext, isDemoMode } from './services/paperclip';
-import { speak, stopSpeaking } from './services/tts';
+import { speak, stopSpeaking, unlockAudio } from './services/tts';
 import type { OrbState, ConversationEntry } from './types';
 
 let entryCounter = 0;
@@ -70,6 +70,9 @@ export default function App() {
   const { isListening, isSupported, startListening } = useSpeechRecognition(processQuery);
 
   const handleOrbClick = () => {
+    // Unlock audio on every user tap so iOS AudioContext stays resumed
+    unlockAudio();
+
     if (orbState === 'speaking') {
       stopSpeaking();
       setOrbState('idle');
@@ -83,6 +86,12 @@ export default function App() {
     }
   };
 
+  const handleTextSubmit = useCallback((text: string) => {
+    // Unlock audio from text submit gesture too
+    unlockAudio();
+    processQuery(text);
+  }, [processQuery]);
+
   const currentOrbState: OrbState = isListening ? 'listening' : orbState;
 
   return (
@@ -95,10 +104,10 @@ export default function App() {
 
       {/* Header */}
       <div
-        className="flex items-center justify-between px-6 py-3"
+        className="flex items-center justify-between px-4 md:px-6 py-3"
         style={{ borderBottom: '1px solid rgba(0,212,255,0.1)', background: 'rgba(2,11,24,0.8)', backdropFilter: 'blur(10px)' }}
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 md:gap-4">
           <motion.div
             animate={{ opacity: [1, 0.7, 1] }}
             transition={{ duration: 4, repeat: Infinity }}
@@ -110,14 +119,13 @@ export default function App() {
             EXECUTIVE AI SYSTEM · PAPERCLIP INTELLIGENCE PLATFORM
           </div>
         </div>
-        <div className="flex items-center gap-4 text-xs">
+        <div className="flex items-center gap-3 md:gap-4 text-xs">
           <div className="flex items-center gap-1.5">
             <span className="status-dot active" />
-            <span className="text-jarvis-dim">SYSTEMS ONLINE</span>
+            <span className="text-jarvis-dim hidden sm:inline">SYSTEMS ONLINE</span>
           </div>
           <div className="text-jarvis-dim">
-            {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-            <span className="mx-1 opacity-30">·</span>
+            <span className="hidden sm:inline">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}<span className="mx-1 opacity-30">·</span></span>
             <LiveClock />
           </div>
         </div>
@@ -126,28 +134,17 @@ export default function App() {
       {/* Metrics bar */}
       {dashboardData && <MetricsBar data={dashboardData} lastUpdated={lastUpdated} />}
 
-      {/* Main layout */}
-      <div className="flex-1 grid grid-cols-12 gap-3 p-4" style={{ minHeight: 0 }}>
-        {/* Left: Agents */}
-        <div className="col-span-3" style={{ maxHeight: 'calc(100vh - 160px)', overflowY: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {isLoading ? (
-            <LoadingSkeleton label="AGENT STATUS" />
-          ) : (
-            <AgentGrid
-              agents={dashboardData?.agents ?? []}
-              activeIssues={dashboardData?.activeIssues ?? []}
-            />
-          )}
-        </div>
+      {/* Main layout — scrollable on mobile, fixed-height 3-col on desktop */}
+      <div className="flex-1 overflow-y-auto md:overflow-y-hidden grid grid-cols-1 md:grid-cols-12 gap-3 p-3 md:p-4" style={{ minHeight: 0 }}>
 
-        {/* Center: Orb + Conversation */}
-        <div className="col-span-6 flex flex-col gap-3">
+        {/* Center: Orb + Conversation — first on mobile */}
+        <div className="col-span-1 md:col-span-6 order-first md:order-none flex flex-col gap-3">
           {/* Orb */}
           <div
             className="panel-border corner-decoration rounded flex items-center justify-center relative overflow-hidden"
-            style={{ minHeight: 240 }}
+            style={{ minHeight: 220 }}
           >
-            <div className="relative flex items-center justify-center" style={{ width: 320, height: 220 }}>
+            <div className="relative flex items-center justify-center" style={{ width: '100%', maxWidth: 320, height: 220 }}>
               <VoiceOrb state={currentOrbState} onClick={handleOrbClick} />
               {!isSupported && orbState === 'idle' && (
                 <div
@@ -162,26 +159,38 @@ export default function App() {
 
           {/* Conversation */}
           <div
-            className="flex-1 panel-border corner-decoration rounded flex flex-col"
-            style={{ minHeight: 180, maxHeight: 'calc(100vh - 430px)' }}
+            className="flex-1 panel-border corner-decoration rounded flex flex-col desktop-convo-panel"
+            style={{ minHeight: 200 }}
           >
             <div className="flex-1 overflow-hidden p-0">
               <ConversationHistory entries={conversation} />
             </div>
-            <TextInput onSubmit={processQuery} disabled={isProcessingRef.current} />
+            <TextInput onSubmit={handleTextSubmit} disabled={isProcessingRef.current} />
           </div>
         </div>
 
-        {/* Right: Review + Agenda */}
-        <div className="col-span-3 flex flex-col gap-3" style={{ maxHeight: 'calc(100vh - 160px)' }}>
-          <div className="flex-1 min-h-0">
+        {/* Left: Agents — second on mobile */}
+        <div className="col-span-1 md:col-span-3 order-2 md:order-none desktop-agents-panel">
+          {isLoading ? (
+            <LoadingSkeleton label="AGENT STATUS" />
+          ) : (
+            <AgentGrid
+              agents={dashboardData?.agents ?? []}
+              activeIssues={dashboardData?.activeIssues ?? []}
+            />
+          )}
+        </div>
+
+        {/* Right: Review + Agenda — third on mobile (side by side on mobile, stacked on desktop) */}
+        <div className="col-span-1 md:col-span-3 order-3 md:order-none flex flex-row md:flex-col gap-3 desktop-side-panel">
+          <div className="flex-1 min-h-0 min-w-0">
             {isLoading ? (
               <LoadingSkeleton label="PENDING REVIEW" />
             ) : (
               <ReviewPanel issues={dashboardData?.inReviewIssues ?? []} />
             )}
           </div>
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 min-w-0">
             {isLoading ? (
               <LoadingSkeleton label="TODAY'S AGENDA" />
             ) : (
@@ -193,7 +202,7 @@ export default function App() {
 
       {/* Footer */}
       <div
-        className="flex items-center justify-center px-6 py-2 text-xs text-jarvis-dim animate-flicker"
+        className="flex items-center justify-center px-4 md:px-6 py-2 text-xs text-jarvis-dim animate-flicker"
         style={{ borderTop: '1px solid rgba(0,212,255,0.05)' }}
       >
         PAPERCLIP INTELLIGENCE PLATFORM · EXECUTIVE DASHBOARD v1.0
