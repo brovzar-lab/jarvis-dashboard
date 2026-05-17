@@ -1,20 +1,14 @@
 import type { Agent, Issue, DashboardData } from '../types';
 import { DEMO_DATA } from './demo-data';
 
-const API_URL = import.meta.env.VITE_PAPERCLIP_API_URL || '';
-const API_KEY = import.meta.env.VITE_PAPERCLIP_API_KEY || '';
 const COMPANY_ID = import.meta.env.VITE_PAPERCLIP_COMPANY_ID || '';
 
 export const isDemoMode =
-  !API_KEY ||
-  API_KEY === 'REPLACE_WITH_VALUE' ||
-  !API_URL ||
-  !COMPANY_ID;
+  !COMPANY_ID ||
+  COMPANY_ID === 'REPLACE_WITH_VALUE';
 
 async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: { Authorization: `Bearer ${API_KEY}` },
-  });
+  const res = await fetch(`/api/paperclip${path}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
