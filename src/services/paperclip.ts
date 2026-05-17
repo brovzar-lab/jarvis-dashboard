@@ -27,12 +27,15 @@ function extractArray<T>(raw: unknown, ...keys: string[]): T[] {
 }
 
 async function discoverCompanyIds(): Promise<string[]> {
-  // Try dynamic discovery via /api/me/companies first
+  // Ask the server which companies it has API keys for
   try {
-    const raw = await apiGet<unknown>('/api/me/companies');
-    const companies = extractArray<{ id: string }>(raw, 'companies', 'data');
-    const ids = companies.map(c => c.id).filter(Boolean);
-    if (ids.length > 0) return ids;
+    const res = await fetch('/api/companies');
+    if (res.ok) {
+      const data = await res.json() as { companyIds?: string[] };
+      if (Array.isArray(data.companyIds) && data.companyIds.length > 0) {
+        return data.companyIds;
+      }
+    }
   } catch {
     // fall through to env var fallback
   }
