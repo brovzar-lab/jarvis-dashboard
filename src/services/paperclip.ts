@@ -122,7 +122,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   return { agents, inReviewIssues, myInbox, activeIssues, blockedIssues, waitingOnMeIssues };
 }
 
-export function buildJarvisContext(data: DashboardData): string {
+export function buildJarvisContext(data: DashboardData, companyId?: string): string {
   const activeAgents = data.agents.filter(a => a.status === 'in_progress' || a.status === 'busy');
   const activeTaskMap = new Map<string, Issue>();
   for (const issue of data.activeIssues) {
@@ -150,10 +150,28 @@ export function buildJarvisContext(data: DashboardData): string {
     `- ${i.identifier}: "${i.title}" (${i.priority} priority)`
   ).join('\n');
 
+  // Agent ID map for command execution
+  const agentIdMap = data.agents.map(a => `${a.name} → ${a.id}`).join('\n');
+
+  // Issue ID map: all known issues across all lists
+  const allIssues = [
+    ...data.inReviewIssues,
+    ...data.myInbox,
+    ...data.activeIssues,
+    ...data.blockedIssues,
+    ...data.waitingOnMeIssues,
+  ];
+  const seenIds = new Set<string>();
+  const issueIdMap = allIssues
+    .filter(i => { if (seenIds.has(i.id)) return false; seenIds.add(i.id); return true; })
+    .map(i => `${i.identifier} → ${i.id}`)
+    .join('\n');
+
   return `CURRENT DASHBOARD STATE:
 Date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 Total agents (all companies): ${data.agents.length}
 Active agents: ${activeAgents.length}/${data.agents.length}
+${companyId ? `Company ID (use for create_issue): ${companyId}` : ''}
 
 AGENTS:
 ${agentSummary}
@@ -168,5 +186,15 @@ BLOCKED ISSUES (${data.blockedIssues.length} total):
 ${blockedSummary || 'None'}
 
 MY INBOX/AGENDA:
-${inboxSummary || 'None'}`;
+${inboxSummary || 'None'}
+
+AGENT ID MAP (for command execution):
+${agentIdMap || 'None'}
+
+ISSUE ID MAP (for command execution):
+${issueIdMap || 'None'}`;
+}
+
+export function getCompanyId(): string {
+  return COMPANY_ID_ENV.split(',')[0]?.trim() ?? '';
 }

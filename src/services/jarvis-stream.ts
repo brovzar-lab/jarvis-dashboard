@@ -17,7 +17,7 @@ export async function askJarvisStreaming(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 300,
+      max_tokens: 600,
       system: JARVIS_SYSTEM_PROMPT,
       messages,
       stream: true,
