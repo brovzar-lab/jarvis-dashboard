@@ -39,6 +39,13 @@ const DEMO_WAITING: Issue[] = [
   { id: 'w3', identifier: 'LEMA-88', title: 'Q2 budget approval needed', status: 'todo', priority: 'medium', updatedAt: new Date(Date.now() - 18000000).toISOString() },
 ];
 
+const DEMO_PITCHES: Issue[] = [
+  { id: 'p1', identifier: 'LEMA-101', title: 'Series A pitch deck — Accel Partners', status: 'in_progress', priority: 'critical', updatedAt: new Date(Date.now() - 1800000).toISOString(), companyId: 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8' },
+  { id: 'p2', identifier: 'LEMA-98', title: 'Demo prep — Y Combinator follow-up call', status: 'todo', priority: 'high', updatedAt: new Date(Date.now() - 7200000).toISOString(), companyId: 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8' },
+  { id: 'p3', identifier: 'LEMA-95', title: 'Partner intro deck — Sequoia intro via Billy', status: 'in_review', priority: 'high', updatedAt: new Date(Date.now() - 10800000).toISOString(), companyId: 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8' },
+  { id: 'p4', identifier: 'LEMA-90', title: 'Due diligence data room setup', status: 'blocked', priority: 'medium', updatedAt: new Date(Date.now() - 21600000).toISOString(), companyId: 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8' },
+];
+
 export const DEMO_DATA: DashboardData = {
   agents: DEMO_AGENTS,
   inReviewIssues: DEMO_REVIEW_ISSUES,
@@ -54,4 +61,5 @@ export const DEMO_DATA: DashboardData = {
   })),
   blockedIssues: DEMO_BLOCKED,
   waitingOnMeIssues: DEMO_WAITING,
+  lemaPitches: DEMO_PITCHES,
 };

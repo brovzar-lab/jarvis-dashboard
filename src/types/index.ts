@@ -28,6 +28,7 @@ export interface DashboardData {
   activeIssues: Issue[];
   blockedIssues: Issue[];
   waitingOnMeIssues: Issue[];
+  lemaPitches: Issue[];
   dashboardSummary?: Record<string, unknown>;
 }
 

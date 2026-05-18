@@ -6,6 +6,7 @@ import { ReviewPanel } from './components/ReviewPanel';
 import { BlockedPanel } from './components/BlockedPanel';
 import { WaitingOnMePanel } from './components/WaitingOnMePanel';
 import { AgendaPanel } from './components/AgendaPanel';
+import { PitchesPanel } from './components/PitchesPanel';
 import { ConversationHistory } from './components/ConversationHistory';
 import { MetricsBar } from './components/MetricsBar';
 import { TextInput } from './components/TextInput';
@@ -524,6 +525,13 @@ export default function App() {
               <LoadingSkeleton label="YOUR CALL" />
             ) : (
               <WaitingOnMePanel issues={dashboardData?.waitingOnMeIssues ?? []} onRefresh={refreshDashboard} newIssueIds={newIssueIds} />
+            )}
+          </div>
+          <div className="min-h-[90px]">
+            {isLoading ? (
+              <LoadingSkeleton label="LEMA PITCHES" />
+            ) : (
+              <PitchesPanel issues={dashboardData?.lemaPitches ?? []} />
             )}
           </div>
           <div className="min-h-[90px]">

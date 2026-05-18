@@ -4,6 +4,7 @@ const BOARD_USER_ID = import.meta.env.VITE_BOARD_USER_ID || 'Ii0txDoen0NV1MLw20A
 import { DEMO_DATA } from './demo-data';
 
 const COMPANY_ID_ENV = import.meta.env.VITE_PAPERCLIP_COMPANY_ID || '';
+const LEMA_COMPANY_ID = 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8';
 
 export const isDemoMode =
   !COMPANY_ID_ENV ||
@@ -120,7 +121,31 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     updatedAt: item.updatedAt ?? new Date().toISOString(),
   }));
 
-  return { agents, inReviewIssues, myInbox, activeIssues, blockedIssues, waitingOnMeIssues };
+  // Fetch LEMA pitches if LEMA is a known company
+  let lemaPitches: Issue[] = [];
+  if (companyIds.includes(LEMA_COMPANY_ID)) {
+    try {
+      const projectsRaw = await apiGet<unknown>(`/api/companies/${LEMA_COMPANY_ID}/projects`).catch(() => null);
+      let pitchProjectId: string | undefined;
+      if (projectsRaw && typeof projectsRaw === 'object') {
+        const projects = extractArray<{ id: string; name: string }>(projectsRaw, 'projects', 'data', 'items');
+        const pitchProject = projects.find(p => /pitch/i.test(p.name));
+        pitchProjectId = pitchProject?.id;
+      }
+      const pitchQuery = pitchProjectId
+        ? `/api/companies/${LEMA_COMPANY_ID}/issues?projectId=${pitchProjectId}&status=todo,in_progress,in_review,blocked&limit=20`
+        : `/api/companies/${LEMA_COMPANY_ID}/issues?q=pitch&status=todo,in_progress,in_review,blocked&limit=20`;
+      const pitchesRaw = await apiGet<unknown>(pitchQuery).catch(() => []);
+      lemaPitches = extractArray<Issue>(pitchesRaw, 'issues', 'data').map(i => ({
+        ...i,
+        companyId: LEMA_COMPANY_ID,
+      }));
+    } catch {
+      // silently degrade — pitches panel will show empty state
+    }
+  }
+
+  return { agents, inReviewIssues, myInbox, activeIssues, blockedIssues, waitingOnMeIssues, lemaPitches };
 }
 
 export function buildJarvisContext(data: DashboardData, companyId?: string): string {
@@ -151,6 +176,10 @@ export function buildJarvisContext(data: DashboardData, companyId?: string): str
     `- ${i.identifier}: "${i.title}" (${i.priority} priority)`
   ).join('\n');
 
+  const pitchesSummary = (data.lemaPitches ?? []).map(i =>
+    `- ${i.identifier}: "${i.title}" [${i.status}] (${i.priority} priority)`
+  ).join('\n');
+
   // Agent ID map for command execution — includes companyId so Claude uses the right company
   const agentIdMap = data.agents.map(a =>
     `${a.name} → agentId:${a.id} companyId:${a.companyId ?? companyId ?? 'unknown'}`
@@ -163,6 +192,7 @@ export function buildJarvisContext(data: DashboardData, companyId?: string): str
     ...data.activeIssues,
     ...data.blockedIssues,
     ...data.waitingOnMeIssues,
+    ...(data.lemaPitches ?? []),
   ];
   const seenIds = new Set<string>();
   const issueIdMap = allIssues
@@ -187,6 +217,9 @@ ${waitingSummary || 'None'}
 
 BLOCKED ISSUES (${data.blockedIssues.length} total):
 ${blockedSummary || 'None'}
+
+LEMA PITCHES (${(data.lemaPitches ?? []).length} active):
+${pitchesSummary || 'None'}
 
 MY INBOX/AGENDA:
 ${inboxSummary || 'None'}
