@@ -78,8 +78,33 @@ export default function App() {
     }
   }, [conversation]);
 
-  const { data: dashboardData, isLoading } = useDashboard();
+  const { data: dashboardData, isLoading, refetch: refreshDashboard } = useDashboard();
   const sessionCost = useCostTracker();
+  const [newIssueIds, setNewIssueIds] = useState<Set<string>>(new Set());
+  const prevIssueIdsRef = useRef<Set<string>>(new Set());
+
+  // Detect newly appeared issues on each data refresh and update lastUpdated
+  useEffect(() => {
+    if (!dashboardData) return;
+    setLastUpdated(new Date());
+    const allCurrent = [
+      ...dashboardData.inReviewIssues,
+      ...dashboardData.blockedIssues,
+      ...dashboardData.waitingOnMeIssues,
+    ];
+    const currentIds = new Set(allCurrent.map(i => i.id));
+    if (prevIssueIdsRef.current.size > 0) {
+      const newIds = new Set<string>();
+      for (const id of currentIds) {
+        if (!prevIssueIdsRef.current.has(id)) newIds.add(id);
+      }
+      if (newIds.size > 0) {
+        setNewIssueIds(newIds);
+        setTimeout(() => setNewIssueIds(new Set()), 1500);
+      }
+    }
+    prevIssueIdsRef.current = currentIds;
+  }, [dashboardData]);
 
   // Keep pendingCommandRef in sync for stale-closure-safe callbacks
   useEffect(() => { pendingCommandRef.current = pendingCommand; }, [pendingCommand]);
@@ -484,21 +509,21 @@ export default function App() {
             {isLoading ? (
               <LoadingSkeleton label="PENDING REVIEW" />
             ) : (
-              <ReviewPanel issues={dashboardData?.inReviewIssues ?? []} />
+              <ReviewPanel issues={dashboardData?.inReviewIssues ?? []} onRefresh={refreshDashboard} newIssueIds={newIssueIds} />
             )}
           </div>
           <div className="min-h-[90px]">
             {isLoading ? (
               <LoadingSkeleton label="BLOCKED" />
             ) : (
-              <BlockedPanel issues={dashboardData?.blockedIssues ?? []} />
+              <BlockedPanel issues={dashboardData?.blockedIssues ?? []} onRefresh={refreshDashboard} newIssueIds={newIssueIds} />
             )}
           </div>
           <div className="min-h-[90px]">
             {isLoading ? (
               <LoadingSkeleton label="YOUR CALL" />
             ) : (
-              <WaitingOnMePanel issues={dashboardData?.waitingOnMeIssues ?? []} />
+              <WaitingOnMePanel issues={dashboardData?.waitingOnMeIssues ?? []} onRefresh={refreshDashboard} newIssueIds={newIssueIds} />
             )}
           </div>
           <div className="min-h-[90px]">

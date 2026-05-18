@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { DashboardData } from '../types';
 
 interface Props {
@@ -11,6 +11,14 @@ interface Props {
 
 export function MetricsBar({ data, lastUpdated, sessionCost, visualAlerts = [], onDismissAlerts }: Props) {
   const [showAlerts, setShowAlerts] = useState(false);
+  const [secsAgo, setSecsAgo] = useState(() => Math.floor((Date.now() - lastUpdated.getTime()) / 1000));
+
+  useEffect(() => {
+    const update = () => setSecsAgo(Math.floor((Date.now() - lastUpdated.getTime()) / 1000));
+    update();
+    const id = setInterval(update, 10000);
+    return () => clearInterval(id);
+  }, [lastUpdated]);
   const activeAgents = data.agents.filter(a => a.status === 'in_progress' || a.status === 'busy').length;
   const inProgressCount = data.myInbox.filter(i => i.status === 'in_progress').length;
   const costStr = sessionCost === 0 ? '$0.0000' : `$${sessionCost.toFixed(4)}`;
@@ -108,7 +116,7 @@ export function MetricsBar({ data, lastUpdated, sessionCost, visualAlerts = [], 
       <div className="ml-auto flex items-center gap-2">
         <span className="text-jarvis-dim">LAST SYNC</span>
         <span style={{ color: '#2a5f80' }}>
-          {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          {secsAgo < 60 ? `${secsAgo}s AGO` : `${Math.floor(secsAgo / 60)}m AGO`}
         </span>
       </div>
     </div>

@@ -87,21 +87,22 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   const waitingOnMeIssues: Issue[] = [];
 
   if (companyResults.status === 'fulfilled') {
-    for (const { agents: a, inReview: ir, active: ac, blocked: bl, waiting: wt } of companyResults.value) {
+    for (const [idx, { agents: a, inReview: ir, active: ac, blocked: bl, waiting: wt }] of companyResults.value.entries()) {
+      const cid = companyIds[idx];
       for (const agent of a) {
-        if (!seenAgents.has(agent.id)) { seenAgents.add(agent.id); agents.push(agent); }
+        if (!seenAgents.has(agent.id)) { seenAgents.add(agent.id); agents.push({ ...agent, companyId: cid }); }
       }
       for (const issue of ir) {
-        if (!seenIssues.has(issue.id)) { seenIssues.add(issue.id); inReviewIssues.push(issue); }
+        if (!seenIssues.has(issue.id)) { seenIssues.add(issue.id); inReviewIssues.push({ ...issue, companyId: cid }); }
       }
       for (const issue of ac) {
-        if (!seenIssues.has(issue.id)) { seenIssues.add(issue.id); activeIssues.push(issue); }
+        if (!seenIssues.has(issue.id)) { seenIssues.add(issue.id); activeIssues.push({ ...issue, companyId: cid }); }
       }
       for (const issue of bl) {
-        if (!seenIssues.has(issue.id)) { seenIssues.add(issue.id); blockedIssues.push(issue); }
+        if (!seenIssues.has(issue.id)) { seenIssues.add(issue.id); blockedIssues.push({ ...issue, companyId: cid }); }
       }
       for (const issue of wt) {
-        if (!seenIssues.has(issue.id)) { seenIssues.add(issue.id); waitingOnMeIssues.push(issue); }
+        if (!seenIssues.has(issue.id)) { seenIssues.add(issue.id); waitingOnMeIssues.push({ ...issue, companyId: cid }); }
       }
     }
   }
@@ -150,8 +151,10 @@ export function buildJarvisContext(data: DashboardData, companyId?: string): str
     `- ${i.identifier}: "${i.title}" (${i.priority} priority)`
   ).join('\n');
 
-  // Agent ID map for command execution
-  const agentIdMap = data.agents.map(a => `${a.name} → ${a.id}`).join('\n');
+  // Agent ID map for command execution — includes companyId so Claude uses the right company
+  const agentIdMap = data.agents.map(a =>
+    `${a.name} → agentId:${a.id} companyId:${a.companyId ?? companyId ?? 'unknown'}`
+  ).join('\n');
 
   // Issue ID map: all known issues across all lists
   const allIssues = [

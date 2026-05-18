@@ -1,6 +1,6 @@
 export interface JarvisCommand {
   command: true;
-  action: 'patch_issue' | 'create_issue' | 'add_comment' | 'get_issue';
+  action: 'patch_issue' | 'create_issue' | 'add_comment' | 'get_issue' | 'trigger_heartbeat';
   params: Record<string, unknown>;
   confirmation: string;
   reply: string;

@@ -1,4 +1,4 @@
-const ALLOWED_ACTIONS = new Set(['patch_issue', 'create_issue', 'add_comment', 'get_issue']);
+const ALLOWED_ACTIONS = new Set(['patch_issue', 'create_issue', 'add_comment', 'get_issue', 'trigger_heartbeat']);
 
 function resolveApiKey(companyId) {
   if (companyId) {
@@ -83,6 +83,13 @@ export default async function handler(req, res) {
       if (!apiKey) { res.status(503).json({ error: 'Paperclip API key not configured' }); return; }
       const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
       upstream = await fetch(`${baseUrl}/api/issues/${issueId}`, { method: 'GET', headers });
+    } else if (action === 'trigger_heartbeat') {
+      const { agentId } = params;
+      if (!agentId) { res.status(400).json({ error: 'trigger_heartbeat requires agentId' }); return; }
+      const apiKey = resolveApiKey(companyId);
+      if (!apiKey) { res.status(503).json({ error: 'Paperclip API key not configured' }); return; }
+      const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
+      upstream = await fetch(`${baseUrl}/api/agents/${agentId}/heartbeat`, { method: 'POST', headers, body: JSON.stringify({}) });
     }
 
     const data = await upstream.json();

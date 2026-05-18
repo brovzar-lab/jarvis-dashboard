@@ -5,6 +5,7 @@ export interface Agent {
   status?: string;
   currentTask?: string;
   currentTaskId?: string;
+  companyId?: string;
 }
 
 export interface Issue {
@@ -17,6 +18,7 @@ export interface Issue {
   assigneeAgent?: Agent;
   updatedAt: string;
   projectId?: string;
+  companyId?: string;
 }
 
 export interface DashboardData {
