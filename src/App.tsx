@@ -13,6 +13,8 @@ import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { useDashboard } from './hooks/useDashboard';
 import { useCostTracker } from './hooks/useCostTracker';
 import { askJarvis } from './services/jarvis-ai';
+import { askJarvisStreaming } from './services/jarvis-stream';
+import { addClaudeUsage } from './services/cost-tracker';
 import { buildJarvisContext, isDemoMode } from './services/paperclip';
 import { speak, stopSpeaking, unlockAudio } from './services/tts';
 import type { OrbState, ConversationEntry } from './types';
@@ -53,19 +55,62 @@ export default function App() {
       ? buildJarvisContext(dashboardData)
       : 'Dashboard data unavailable — operating in limited mode.';
 
-    try {
-      const response = await askJarvis(userText, context, convHistoryRef.current.slice(-8));
-      convHistoryRef.current.push({ role: 'assistant', content: response });
+    const jarvisEntryId = String(++entryCounter);
+    let ttsChain = Promise.resolve();
+    let firstSentence = true;
 
-      addEntry('jarvis', response);
-      setOrbState('speaking');
-      await speak(response);
+    try {
+      // Add a provisional entry that fills in as streaming arrives
+      setConversation(prev => [...prev, {
+        id: jarvisEntryId,
+        role: 'jarvis' as const,
+        text: '…',
+        timestamp: new Date(),
+      }]);
+
+      await askJarvisStreaming(
+        userText,
+        context,
+        convHistoryRef.current.slice(-8),
+        (sentence) => {
+          if (firstSentence) {
+            firstSentence = false;
+            setOrbState('speaking');
+          }
+          setConversation(prev => prev.map(e =>
+            e.id === jarvisEntryId ? { ...e, text: (e.text === '…' ? '' : e.text + ' ') + sentence } : e
+          ));
+          ttsChain = ttsChain.then(() => speak(sentence));
+        },
+        (fullText, usage) => {
+          setConversation(prev => prev.map(e =>
+            e.id === jarvisEntryId ? { ...e, text: fullText } : e
+          ));
+          convHistoryRef.current.push({ role: 'assistant', content: fullText });
+          setLastUpdated(new Date());
+          addClaudeUsage(usage.input_tokens, usage.output_tokens);
+        }
+      );
+
+      await ttsChain;
     } catch (err) {
-      console.error('processQuery unexpected error:', err);
-      const fallback = 'I encountered an unexpected error, sir. Please try again.';
-      addEntry('jarvis', fallback);
-      setOrbState('speaking');
-      await speak(fallback);
+      // Streaming failed — fall back to the non-streaming path
+      console.warn('Streaming failed, falling back to non-streaming:', err);
+      setConversation(prev => prev.filter(e => e.id !== jarvisEntryId));
+
+      try {
+        const response = await askJarvis(userText, context, convHistoryRef.current.slice(-8));
+        convHistoryRef.current.push({ role: 'assistant', content: response });
+        addEntry('jarvis', response);
+        setOrbState('speaking');
+        await speak(response);
+      } catch (fallbackErr) {
+        console.error('processQuery fallback error:', fallbackErr);
+        const fallback = 'I encountered an unexpected error, sir. Please try again.';
+        addEntry('jarvis', fallback);
+        setOrbState('speaking');
+        await speak(fallback);
+      }
     } finally {
       isProcessingRef.current = false;
       setOrbState('idle');

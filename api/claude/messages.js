@@ -21,6 +21,18 @@ export default async function handler(req, res) {
     body: JSON.stringify(req.body),
   });
 
+  if (req.body.stream) {
+    res.status(upstream.status);
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    for await (const chunk of upstream.body) {
+      res.write(chunk);
+    }
+    res.end();
+    return;
+  }
+
   const body = await upstream.text();
   res.status(upstream.status);
   res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'application/json');
