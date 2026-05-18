@@ -6,6 +6,10 @@ export interface Agent {
   currentTask?: string;
   currentTaskId?: string;
   companyId?: string;
+  role?: string;
+  title?: string;
+  icon?: string;
+  capabilities?: string;
 }
 
 export interface Issue {
@@ -30,6 +34,7 @@ export interface DashboardData {
   waitingOnMeIssues: Issue[];
   lemaPitches: Issue[];
   dashboardSummary?: Record<string, unknown>;
+  companyLabels?: Record<string, string>;
 }
 
 export type OrbState = 'idle' | 'listening' | 'thinking' | 'speaking';

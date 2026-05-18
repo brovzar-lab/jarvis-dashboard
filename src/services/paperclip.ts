@@ -145,7 +145,20 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     }
   }
 
-  return { agents, inReviewIssues, myInbox, activeIssues, blockedIssues, waitingOnMeIssues, lemaPitches };
+  // Derive company labels from issue identifier prefixes (e.g. "APPU-617" → "APPU")
+  const companyLabels: Record<string, string> = {};
+  if (companyResults.status === 'fulfilled') {
+    for (const [idx, { inReview: ir, active: ac }] of companyResults.value.entries()) {
+      const cid = companyIds[idx];
+      if (companyLabels[cid]) continue;
+      for (const issue of [...ir, ...ac]) {
+        const match = issue.identifier?.match(/^([A-Z]+)-/);
+        if (match) { companyLabels[cid] = match[1]; break; }
+      }
+    }
+  }
+
+  return { agents, inReviewIssues, myInbox, activeIssues, blockedIssues, waitingOnMeIssues, lemaPitches, companyLabels };
 }
 
 export function buildJarvisContext(data: DashboardData, companyId?: string): string {

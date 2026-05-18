@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { VoiceOrb } from './components/VoiceOrb';
 import { AgentGrid } from './components/AgentGrid';
+import { AgentBehaviorsPanel } from './components/AgentBehaviorsPanel';
 import { ReviewPanel } from './components/ReviewPanel';
 import { BlockedPanel } from './components/BlockedPanel';
 import { WaitingOnMePanel } from './components/WaitingOnMePanel';
@@ -53,6 +54,7 @@ export default function App() {
   const [confirmCountdown, setConfirmCountdown] = useState(0);
   const [micMuted, setMicMuted] = useState(false);
   const [visualAlerts, setVisualAlerts] = useState<string[]>([]);
+  const [agentView, setAgentView] = useState<'grid' | 'behaviors'>('behaviors');
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
   const isProcessingRef = useRef(false);
@@ -495,11 +497,19 @@ export default function App() {
         {/* Left: Agents — second on mobile */}
         <div className="col-span-1 md:col-span-3 order-2 md:order-none desktop-agents-panel">
           {isLoading ? (
-            <LoadingSkeleton label="AGENT STATUS" />
+            <LoadingSkeleton label={agentView === 'behaviors' ? 'AGENT BEHAVIORS' : 'AGENT STATUS'} />
+          ) : agentView === 'behaviors' ? (
+            <AgentBehaviorsPanel
+              agents={dashboardData?.agents ?? []}
+              activeIssues={dashboardData?.activeIssues ?? []}
+              companyLabels={dashboardData?.companyLabels ?? {}}
+              onToggleView={() => setAgentView('grid')}
+            />
           ) : (
             <AgentGrid
               agents={dashboardData?.agents ?? []}
               activeIssues={dashboardData?.activeIssues ?? []}
+              onToggleView={() => setAgentView('behaviors')}
             />
           )}
         </div>

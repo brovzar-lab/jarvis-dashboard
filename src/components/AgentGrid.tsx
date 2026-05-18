@@ -4,6 +4,7 @@ import type { Agent, Issue } from '../types';
 interface Props {
   agents: Agent[];
   activeIssues: Issue[];
+  onToggleView?: () => void;
 }
 
 function getStatusClass(status?: string) {
@@ -12,7 +13,7 @@ function getStatusClass(status?: string) {
   return 'idle';
 }
 
-export function AgentGrid({ agents, activeIssues }: Props) {
+export function AgentGrid({ agents, activeIssues, onToggleView }: Props) {
   const taskMap = new Map<string, Issue>();
   for (const issue of activeIssues) {
     if (issue.assigneeAgentId) taskMap.set(issue.assigneeAgentId, issue);
@@ -24,9 +25,19 @@ export function AgentGrid({ agents, activeIssues }: Props) {
     <div className="panel-border corner-decoration rounded p-4 h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs tracking-widest text-jarvis">AGENT STATUS</span>
-        <span className="text-xs text-jarvis-dim">
-          {activeCount}/{agents.length} ACTIVE
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-jarvis-dim">{activeCount}/{agents.length} ACTIVE</span>
+          {onToggleView && (
+            <button
+              onClick={onToggleView}
+              className="text-xs tracking-widest px-1.5 py-0.5 transition-colors"
+              style={{ color: '#2a5f80', border: '1px solid #0a2a4a', borderRadius: 2, lineHeight: 1.4 }}
+              title="Switch to behaviors view"
+            >
+              BEHAV
+            </button>
+          )}
+        </div>
       </div>
       <div className="glow-line" />
       <div className="flex-1 overflow-y-auto space-y-2 mt-2">
