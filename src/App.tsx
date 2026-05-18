@@ -9,16 +9,23 @@ import { AgendaPanel } from './components/AgendaPanel';
 import { ConversationHistory } from './components/ConversationHistory';
 import { MetricsBar } from './components/MetricsBar';
 import { TextInput } from './components/TextInput';
+import { CommandConfirmation } from './components/CommandConfirmation';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
+import { useWakeWord } from './hooks/useWakeWord';
+import { useNotificationPolling } from './hooks/useNotificationPolling';
 import { useDashboard } from './hooks/useDashboard';
 import { useCostTracker } from './hooks/useCostTracker';
 import { useProactiveBriefing } from './hooks/useProactiveBriefing';
 import { askJarvis } from './services/jarvis-ai';
 import { askJarvisStreaming } from './services/jarvis-stream';
 import { addClaudeUsage } from './services/cost-tracker';
-import { buildJarvisContext, isDemoMode } from './services/paperclip';
+import { buildJarvisContext, isDemoMode, getCompanyId } from './services/paperclip';
 import { speak, stopSpeaking, unlockAudio } from './services/tts';
+import { parseCommandResponse, executeCommand } from './services/command-executor';
+import type { JarvisCommand } from './services/command-executor';
 import type { OrbState, ConversationEntry } from './types';
+
+const COMPANY_ID = getCompanyId();
 
 const CONV_STORAGE_KEY = 'jarvis_conversation_history';
 
@@ -39,7 +46,10 @@ export default function App() {
   const [orbState, setOrbState] = useState<OrbState>('idle');
   const [conversation, setConversation] = useState<ConversationEntry[]>(loadConversation);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [pendingCommand, setPendingCommand] = useState<JarvisCommand | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const pendingCommandRef = useRef<JarvisCommand | null>(null);
   const isProcessingRef = useRef(false);
   const initialHistoryRestoredRef = useRef(false);
 
@@ -64,6 +74,9 @@ export default function App() {
   const { data: dashboardData, isLoading } = useDashboard();
   const sessionCost = useCostTracker();
 
+  // Keep pendingCommandRef in sync for stale-closure-safe callbacks
+  useEffect(() => { pendingCommandRef.current = pendingCommand; }, [pendingCommand]);
+
   const addEntry = (role: 'user' | 'jarvis', text: string) => {
     setConversation(prev => [...prev, {
       id: String(++entryCounter),
@@ -82,8 +95,60 @@ export default function App() {
     setOrbState('idle');
   });
 
+  const handleCancel = useCallback(async () => {
+    setPendingCommand(null);
+    pendingCommandRef.current = null;
+    const msg = 'Understood, command cancelled, sir.';
+    addEntry('jarvis', msg);
+    setOrbState('speaking');
+    await speak(msg);
+    setOrbState('idle');
+  }, []);
+
+  const handleExecute = useCallback(async () => {
+    const cmd = pendingCommandRef.current;
+    if (!cmd) return;
+    setPendingCommand(null);
+    pendingCommandRef.current = null;
+    setIsExecuting(true);
+
+    if (isDemoMode) {
+      setIsExecuting(false);
+      const msg = 'Demo mode — action not executed, sir. Connect a live Paperclip workspace to enable command execution.';
+      addEntry('jarvis', msg);
+      setOrbState('speaking');
+      await speak(msg);
+      setOrbState('idle');
+      return;
+    }
+
+    setOrbState('thinking');
+    const result = await executeCommand(cmd, COMPANY_ID);
+    setIsExecuting(false);
+    const reply = result.success ? result.message : `Command failed, sir. ${result.message}`;
+    convHistoryRef.current.push({ role: 'assistant', content: reply });
+    addEntry('jarvis', reply);
+    setOrbState('speaking');
+    await speak(reply);
+    setOrbState('idle');
+  }, []);
+
   const processQuery = useCallback(async (userText: string) => {
     if (!userText.trim() || isProcessingRef.current) return;
+
+    // Intercept execute/cancel when command confirmation is pending
+    if (pendingCommandRef.current) {
+      const lower = userText.trim().toLowerCase();
+      if (lower === 'execute' || lower === 'yes' || lower === 'confirm') {
+        handleExecute();
+        return;
+      }
+      if (lower === 'cancel' || lower === 'no' || lower === 'abort') {
+        handleCancel();
+        return;
+      }
+    }
+
     isProcessingRef.current = true;
 
     addEntry('user', userText);
@@ -93,12 +158,13 @@ export default function App() {
     stopSpeaking();
 
     const context = dashboardData
-      ? buildJarvisContext(dashboardData)
+      ? buildJarvisContext(dashboardData, COMPANY_ID)
       : 'Dashboard data unavailable — operating in limited mode.';
 
     const jarvisEntryId = String(++entryCounter);
     let ttsChain = Promise.resolve();
     let firstSentence = true;
+    let commandDetected = false;
 
     try {
       // Add a provisional entry that fills in as streaming arrives
@@ -114,6 +180,7 @@ export default function App() {
         context,
         convHistoryRef.current.slice(-8),
         (sentence) => {
+          if (commandDetected) return; // suppress TTS for command JSON
           if (firstSentence) {
             firstSentence = false;
             setOrbState('speaking');
@@ -124,16 +191,31 @@ export default function App() {
           ttsChain = ttsChain.then(() => speak(sentence));
         },
         (fullText, usage) => {
-          setConversation(prev => prev.map(e =>
-            e.id === jarvisEntryId ? { ...e, text: fullText } : e
-          ));
-          convHistoryRef.current.push({ role: 'assistant', content: fullText });
-          setLastUpdated(new Date());
           addClaudeUsage(usage.input_tokens, usage.output_tokens);
+          setLastUpdated(new Date());
+
+          const command = parseCommandResponse(fullText);
+          if (command) {
+            commandDetected = true;
+            stopSpeaking();
+            // Replace provisional entry with the confirmation text
+            setConversation(prev => prev.map(e =>
+              e.id === jarvisEntryId ? { ...e, text: command.confirmation } : e
+            ));
+            setPendingCommand(command);
+            pendingCommandRef.current = command;
+            setOrbState('speaking');
+            speak(command.confirmation + ' Say execute to proceed, or cancel.').then(() => setOrbState('idle'));
+          } else {
+            setConversation(prev => prev.map(e =>
+              e.id === jarvisEntryId ? { ...e, text: fullText } : e
+            ));
+            convHistoryRef.current.push({ role: 'assistant', content: fullText });
+          }
         }
       );
 
-      await ttsChain;
+      if (!commandDetected) await ttsChain;
     } catch (err) {
       // Streaming failed — fall back to the non-streaming path
       console.warn('Streaming failed, falling back to non-streaming:', err);
@@ -141,24 +223,55 @@ export default function App() {
 
       try {
         const response = await askJarvis(userText, context, convHistoryRef.current.slice(-8));
-        convHistoryRef.current.push({ role: 'assistant', content: response });
-        addEntry('jarvis', response);
-        setOrbState('speaking');
-        await speak(response);
+        const command = parseCommandResponse(response);
+        if (command) {
+          setPendingCommand(command);
+          pendingCommandRef.current = command;
+          addEntry('jarvis', command.confirmation);
+          setOrbState('speaking');
+          await speak(command.confirmation + ' Say execute to proceed, or cancel.');
+          setOrbState('idle');
+        } else {
+          convHistoryRef.current.push({ role: 'assistant', content: response });
+          addEntry('jarvis', response);
+          setOrbState('speaking');
+          await speak(response);
+          setOrbState('idle');
+        }
       } catch (fallbackErr) {
         console.error('processQuery fallback error:', fallbackErr);
         const fallback = 'I encountered an unexpected error, sir. Please try again.';
         addEntry('jarvis', fallback);
         setOrbState('speaking');
         await speak(fallback);
+        setOrbState('idle');
       }
     } finally {
       isProcessingRef.current = false;
-      setOrbState('idle');
+      if (!commandDetected) setOrbState('idle');
     }
-  }, [dashboardData]);
+  }, [dashboardData, handleExecute, handleCancel]);
 
   const { isListening, isSupported, startListening } = useSpeechRecognition(processQuery);
+
+  const { isListening: wakeListening } = useWakeWord(
+    () => {
+      unlockAudio();
+      if (orbState === 'idle' && !isProcessingRef.current) {
+        setOrbState('listening');
+        startListening();
+      }
+    },
+    orbState === 'idle' && !isProcessingRef.current,
+  );
+
+  useNotificationPolling(dashboardData, async (message) => {
+    if (orbState !== 'idle') return;
+    addEntry('jarvis', message);
+    setOrbState('speaking');
+    await speak(message);
+    setOrbState('idle');
+  });
 
   const handleOrbClick = () => {
     // Unlock audio on every user tap so iOS AudioContext stays resumed
@@ -192,6 +305,14 @@ export default function App() {
       {isDemoMode && (
         <div className="demo-badge tracking-widest">DEMO MODE</div>
       )}
+
+      {/* Command confirmation overlay */}
+      <CommandConfirmation
+        command={pendingCommand}
+        isExecuting={isExecuting}
+        onExecute={handleExecute}
+        onCancel={handleCancel}
+      />
 
       {/* Header */}
       <div
@@ -237,6 +358,21 @@ export default function App() {
           >
             <div className="relative flex items-center justify-center" style={{ width: '100%', maxWidth: 320, height: 220 }}>
               <VoiceOrb state={currentOrbState} onClick={handleOrbClick} />
+              {wakeListening && (
+                <motion.div
+                  className="absolute top-2 right-2 flex items-center gap-1.5"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  <motion.div
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ background: '#00d4ff' }}
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                  <span className="text-xs tracking-widest" style={{ color: '#2a5f80' }}>WAKE</span>
+                </motion.div>
+              )}
               {!isSupported && orbState === 'idle' && (
                 <div
                   className="absolute bottom-0 text-center text-xs"
@@ -310,7 +446,7 @@ export default function App() {
         className="flex items-center justify-center px-4 md:px-6 py-2 text-xs text-jarvis-dim animate-flicker"
         style={{ borderTop: '1px solid rgba(0,212,255,0.05)' }}
       >
-        PAPERCLIP INTELLIGENCE PLATFORM · EXECUTIVE DASHBOARD v1.0
+        PAPERCLIP INTELLIGENCE PLATFORM · EXECUTIVE DASHBOARD v2.0
       </div>
     </div>
   );
