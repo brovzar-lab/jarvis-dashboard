@@ -15,24 +15,15 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { action, params = {}, companyId } = req.body ?? {};
+  // Use let so create_issue can override companyId with the agent's actual company
+  let { action, params = {}, companyId } = req.body ?? {};
 
   if (!action || !ALLOWED_ACTIONS.has(action)) {
     res.status(400).json({ error: `Unknown action: ${action}` });
     return;
   }
 
-  const apiKey = resolveApiKey(companyId);
-  if (!apiKey) {
-    res.status(503).json({ error: 'Paperclip API key not configured' });
-    return;
-  }
-
   const baseUrl = process.env.PAPERCLIP_API_URL;
-  const headers = {
-    Authorization: `Bearer ${apiKey}`,
-    'Content-Type': 'application/json',
-  };
 
   try {
     let upstream;
@@ -40,6 +31,9 @@ export default async function handler(req, res) {
     if (action === 'patch_issue') {
       const { issueId, ...patch } = params;
       if (!issueId) { res.status(400).json({ error: 'patch_issue requires issueId' }); return; }
+      const apiKey = resolveApiKey(companyId);
+      if (!apiKey) { res.status(503).json({ error: 'Paperclip API key not configured' }); return; }
+      const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
       const allowed = {};
       if (patch.status) allowed.status = patch.status;
       if (patch.assigneeAgentId !== undefined) allowed.assigneeAgentId = patch.assigneeAgentId;
@@ -50,14 +44,20 @@ export default async function handler(req, res) {
         body: JSON.stringify(allowed),
       });
     } else if (action === 'create_issue') {
-      if (!companyId) { res.status(400).json({ error: 'create_issue requires companyId' }); return; }
+      // Claude passes companyId in params to target the agent's actual company (multi-company support)
+      const effectiveCompanyId = params.companyId || companyId;
+      if (!effectiveCompanyId) { res.status(400).json({ error: 'create_issue requires companyId' }); return; }
       if (!params.title) { res.status(400).json({ error: 'create_issue requires title' }); return; }
+      // Resolve API key for the agent's company — may differ from the caller's primary company
+      const apiKey = resolveApiKey(effectiveCompanyId);
+      if (!apiKey) { res.status(503).json({ error: 'Paperclip API key not configured' }); return; }
+      const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
       const body = { title: params.title };
       if (params.assigneeAgentId) body.assigneeAgentId = params.assigneeAgentId;
       if (params.priority) body.priority = params.priority;
       if (params.description) body.description = params.description;
       if (params.parentId) body.parentId = params.parentId;
-      upstream = await fetch(`${baseUrl}/api/companies/${companyId}/issues`, {
+      upstream = await fetch(`${baseUrl}/api/companies/${effectiveCompanyId}/issues`, {
         method: 'POST',
         headers,
         body: JSON.stringify(body),
@@ -68,6 +68,9 @@ export default async function handler(req, res) {
         res.status(400).json({ error: 'add_comment requires issueId and body' });
         return;
       }
+      const apiKey = resolveApiKey(companyId);
+      if (!apiKey) { res.status(503).json({ error: 'Paperclip API key not configured' }); return; }
+      const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
       upstream = await fetch(`${baseUrl}/api/issues/${issueId}/comments`, {
         method: 'POST',
         headers,
@@ -76,6 +79,9 @@ export default async function handler(req, res) {
     } else if (action === 'get_issue') {
       const { issueId } = params;
       if (!issueId) { res.status(400).json({ error: 'get_issue requires issueId' }); return; }
+      const apiKey = resolveApiKey(companyId);
+      if (!apiKey) { res.status(503).json({ error: 'Paperclip API key not configured' }); return; }
+      const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
       upstream = await fetch(`${baseUrl}/api/issues/${issueId}`, { method: 'GET', headers });
     }
 
