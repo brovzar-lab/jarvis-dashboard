@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   }
 
   const elevenKey = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || 'ErXwobaYiN019PkySvjV';
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || process.env.VITE_ELEVENLABS_VOICE_ID || 'ErXwobaYiN019PkySvjV';
 
   if (!elevenKey) {
     res.status(503).json({ error: 'TTS not configured' });

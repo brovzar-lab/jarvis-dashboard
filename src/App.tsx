@@ -13,6 +13,7 @@ import { AgendaPanel } from './components/AgendaPanel';
 import { PitchesPanel } from './components/PitchesPanel';
 import { ConversationHistory } from './components/ConversationHistory';
 import { MetricsBar } from './components/MetricsBar';
+import { SuggestedMovesStrip } from './components/SuggestedMovesStrip';
 import { TextInput } from './components/TextInput';
 import { CommandConfirmation } from './components/CommandConfirmation';
 import { MicStatusIndicator } from './components/MicStatusIndicator';
@@ -58,7 +59,7 @@ export default function App() {
   const [micMuted, setMicMuted] = useState(false);
   const [visualAlerts, setVisualAlerts] = useState<string[]>([]);
   const [agentView, setAgentView] = useState<'grid' | 'behaviors'>('behaviors');
-  const [leftTab, setLeftTab] = useState<'agents' | 'email' | 'calendar' | 'brain'>('agents');
+  const [leftTab, setLeftTab] = useState<'brief' | 'agents' | 'email' | 'calendar' | 'brain'>('brief');
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
   const isProcessingRef = useRef(false);
@@ -426,6 +427,7 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-3 md:gap-4 text-xs">
+          <TimePeriodIndicator />
           <div className="flex items-center gap-1.5">
             <span className="status-dot active" />
             <span className="text-jarvis-dim hidden sm:inline">SYSTEMS ONLINE</span>
@@ -451,8 +453,8 @@ export default function App() {
       {/* Main layout — scrollable on mobile, fixed-height 3-col on desktop */}
       <div className="flex-1 overflow-y-auto md:overflow-y-hidden grid grid-cols-1 md:grid-cols-12 gap-3 p-3 md:p-4" style={{ minHeight: 0 }}>
 
-        {/* Center: Orb + Conversation — first on mobile */}
-        <div className="col-span-1 md:col-span-6 order-first md:order-none flex flex-col gap-3">
+        {/* Center: Orb + Conversation — first on mobile, cols 5-9 on desktop */}
+        <div className="col-span-1 md:col-span-5 md:col-start-5 order-first md:order-none flex flex-col gap-3">
           {/* Orb */}
           <div
             className="panel-border corner-decoration rounded flex items-center justify-center relative overflow-hidden"
@@ -520,14 +522,14 @@ export default function App() {
           </div>
         </div>
 
-        {/* Left: Intel tabs — second on mobile */}
-        <div className="col-span-1 md:col-span-3 order-2 md:order-none desktop-agents-panel flex flex-col gap-0">
+        {/* Left: Intel tabs — second on mobile, cols 1-4 on desktop */}
+        <div className="col-span-1 md:col-span-4 md:col-start-1 order-2 md:order-none desktop-agents-panel flex flex-col gap-0">
           {/* Tab bar */}
           <div
             className="flex items-center gap-0 mb-0 flex-shrink-0"
             style={{ borderBottom: '1px solid #0a2a4a' }}
           >
-            {(['agents', 'email', 'calendar', 'brain'] as const).map(tab => (
+            {(['brief', 'agents', 'email', 'calendar', 'brain'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setLeftTab(tab)}
@@ -537,16 +539,22 @@ export default function App() {
                   background: leftTab === tab ? 'rgba(0,212,255,0.06)' : 'transparent',
                   borderBottom: leftTab === tab ? '1px solid #00d4ff' : '1px solid transparent',
                   marginBottom: -1,
-                  fontSize: '0.6rem',
+                  fontSize: '0.55rem',
                 }}
               >
-                {tab === 'brain' ? '◆' : ''}{tab.toUpperCase()}
+                {tab === 'brief' ? '◆' : ''}{tab === 'calendar' ? 'CAL' : tab === 'brain' ? 'BRAIN' : tab.toUpperCase()}
               </button>
             ))}
           </div>
           {/* Tab content */}
-          <div className="flex-1 min-h-0">
-            {leftTab === 'agents' ? (
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {leftTab === 'brief' ? (
+              <BriefingPanel
+                conversation={conversation}
+                lastUpdated={lastUpdated}
+                onAction={handleTextSubmit}
+              />
+            ) : leftTab === 'agents' ? (
               isLoading ? (
                 <LoadingSkeleton label={agentView === 'behaviors' ? 'AGENT BEHAVIORS' : 'AGENT STATUS'} />
               ) : agentView === 'behaviors' ? (
@@ -573,8 +581,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right: Review + Blocked + Waiting + Agenda — stacked, scrollable */}
-        <div className="col-span-1 md:col-span-3 order-3 md:order-none flex flex-col gap-3 desktop-side-panel">
+        {/* Right: Review + Blocked + Waiting + Agenda — stacked, scrollable, cols 10-12 on desktop */}
+        <div className="col-span-1 md:col-span-3 md:col-start-10 order-3 md:order-none flex flex-col gap-3 desktop-side-panel">
           <div className="min-h-[100px]">
             {isLoading ? (
               <LoadingSkeleton label="PENDING REVIEW" />
@@ -612,6 +620,16 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* Suggested next moves strip */}
+      {dashboardData && (
+        <SuggestedMovesStrip
+          blocked={dashboardData.blockedIssues}
+          review={dashboardData.inReviewIssues}
+          waiting={dashboardData.waitingOnMeIssues}
+          onAction={handleTextSubmit}
+        />
+      )}
 
       {/* Footer */}
       <div
@@ -663,6 +681,108 @@ function OrbClock() {
     >
       {time}
     </motion.div>
+  );
+}
+
+function TimePeriodIndicator() {
+  const hour = new Date().getHours();
+  const period = hour < 12 ? 'MORNING' : hour < 17 ? 'MID-DAY' : 'END OF DAY';
+  const periods = ['MORNING', 'MID-DAY', 'END OF DAY'];
+  return (
+    <div className="items-center gap-0.5 hidden md:flex">
+      {periods.map(p => (
+        <span
+          key={p}
+          className="px-2 py-0.5 text-xs tracking-widest transition-colors"
+          style={{
+            color: p === period ? '#00d4ff' : '#1a3040',
+            border: p === period ? '1px solid rgba(0,212,255,0.25)' : '1px solid transparent',
+            fontSize: '0.55rem',
+          }}
+        >
+          {p}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+interface BriefingPanelProps {
+  conversation: ConversationEntry[];
+  lastUpdated: Date;
+  onAction: (text: string) => void;
+}
+
+function BriefingPanel({ conversation, lastUpdated, onAction }: BriefingPanelProps) {
+  const hour = new Date().getHours();
+  const periodLabel = hour < 12 ? 'MORNING CHECK-IN' : hour < 17 ? 'MID-DAY CHECK-IN' : 'END-OF-DAY BRIEF';
+  const jarvisMessages = conversation.filter(e => e.role === 'jarvis');
+  const CHIPS = [
+    "What's blocking us right now?",
+    "Show today's pending reviews",
+    "Status of all agents",
+    "What should I focus on next?",
+  ];
+  return (
+    <div className="panel-border corner-decoration rounded h-full flex flex-col" style={{ padding: '10px 12px' }}>
+      <div className="flex items-center justify-between mb-2 flex-shrink-0">
+        <motion.span
+          className="text-xs tracking-widest text-jarvis"
+          style={{ fontSize: '0.6rem' }}
+          animate={{ opacity: [0.7, 1, 0.7] }}
+          transition={{ duration: 4, repeat: Infinity }}
+        >
+          {periodLabel}
+        </motion.span>
+        <span className="text-xs tracking-widest" style={{ color: '#1a3040', fontSize: '0.55rem' }}>
+          refreshed {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
+      <div className="glow-line flex-shrink-0" />
+      <div className="flex-1 overflow-y-auto mt-2 space-y-3 min-h-0">
+        {jarvisMessages.length > 0 ? (
+          jarvisMessages.slice(-4).map(entry => (
+            <div key={entry.id}>
+              <div className="text-xs tracking-widest mb-1" style={{ color: '#1a4060', fontSize: '0.55rem' }}>
+                {entry.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              </div>
+              <div className="text-xs leading-relaxed" style={{ color: '#4a9fc0', lineHeight: '1.7', fontSize: '0.72rem' }}>
+                {entry.text}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full gap-3 py-8">
+            <motion.div
+              animate={{ opacity: [0.3, 0.7, 0.3] }}
+              transition={{ duration: 2.5, repeat: Infinity }}
+              className="text-xs tracking-widest text-center"
+              style={{ color: '#2a5f80', fontSize: '0.6rem' }}
+            >
+              AWAITING BRIEFING
+            </motion.div>
+            <div className="text-xs text-center leading-relaxed" style={{ color: '#1a3040', fontSize: '0.65rem' }}>
+              Click the orb or ask Jarvis anything to start your session
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="flex-shrink-0 mt-3 pt-2" style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
+        <div className="text-xs tracking-widest mb-1.5" style={{ color: '#1a3040', fontSize: '0.55rem' }}>QUICK ACTIONS</div>
+        <div className="flex flex-wrap gap-1.5">
+          {CHIPS.map(chip => (
+            <button
+              key={chip}
+              onClick={() => onAction(chip)}
+              className="px-2 py-1 text-xs tracking-widest transition-all hover:opacity-80"
+              style={{ border: '1px solid rgba(0,212,255,0.18)', color: '#2a5f80', background: 'transparent', fontSize: '0.55rem', borderRadius: 2 }}
+            >
+              {chip}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
