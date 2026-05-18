@@ -346,6 +346,22 @@ export default function App() {
         onCancel={handleCancel}
       />
 
+      {/* Skip briefing button — visible while auto-briefing is speaking */}
+      {isBriefing && orbState === 'speaking' && (
+        <button
+          onClick={skipBriefing}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 text-xs tracking-widest transition-colors"
+          style={{
+            minHeight: 44,
+            border: '1px solid rgba(0,212,255,0.6)',
+            background: 'rgba(0,0,0,0.5)',
+            color: '#00d4ff',
+          }}
+        >
+          SKIP BRIEFING
+        </button>
+      )}
+
       {/* Header */}
       <div
         className="flex items-center justify-between px-4 md:px-6 py-3"

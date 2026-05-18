@@ -1,7 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import type { DashboardData } from '../types';
+import { stopSpeaking } from '../services/tts';
 
 const SESSION_KEY = 'jarvis_briefed';
+
+const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -41,11 +44,17 @@ function buildBriefing(data: DashboardData): string {
 export function useProactiveBriefing(
   dashboardData: DashboardData | undefined,
   hasExistingHistory: boolean,
-  onBriefing: (text: string) => void,
-): void {
+  onBriefing: (text: string) => Promise<void>,
+): { isBriefing: boolean; skipBriefing: () => void } {
   const calledRef = useRef(false);
   const onBriefingRef = useRef(onBriefing);
   onBriefingRef.current = onBriefing;
+  const [isBriefing, setIsBriefing] = useState(false);
+
+  const skipBriefing = useCallback(() => {
+    stopSpeaking();
+    setIsBriefing(false);
+  }, []);
 
   useEffect(() => {
     if (calledRef.current) return;
@@ -59,10 +68,32 @@ export function useProactiveBriefing(
       ? 'Welcome back, sir. Picking up where we left off.'
       : buildBriefing(dashboardData);
 
-    const timer = setTimeout(() => {
-      onBriefingRef.current(text);
-    }, 2000);
+    const fireBriefing = () => {
+      setIsBriefing(true);
+      onBriefingRef.current(text).finally(() => setIsBriefing(false));
+    };
 
+    if (isMobile) {
+      // Mobile: fire on first user gesture — browsers block autoplay audio until interaction
+      let cleanupListeners: () => void;
+      const onFirstGesture = () => {
+        cleanupListeners();
+        setTimeout(fireBriefing, 500); // small delay so the gesture completes
+      };
+      cleanupListeners = () => {
+        document.removeEventListener('click', onFirstGesture);
+        document.removeEventListener('touchstart', onFirstGesture);
+        document.removeEventListener('scroll', onFirstGesture);
+      };
+      document.addEventListener('click', onFirstGesture, { once: true });
+      document.addEventListener('touchstart', onFirstGesture, { once: true });
+      document.addEventListener('scroll', onFirstGesture, { once: true, passive: true });
+      return cleanupListeners;
+    }
+
+    const timer = setTimeout(fireBriefing, 5000);
     return () => clearTimeout(timer);
   }, [dashboardData, hasExistingHistory]);
+
+  return { isBriefing, skipBriefing };
 }
