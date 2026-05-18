@@ -48,6 +48,7 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [pendingCommand, setPendingCommand] = useState<JarvisCommand | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [confirmCountdown, setConfirmCountdown] = useState(0);
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
   const isProcessingRef = useRef(false);
@@ -77,6 +78,25 @@ export default function App() {
   // Keep pendingCommandRef in sync for stale-closure-safe callbacks
   useEffect(() => { pendingCommandRef.current = pendingCommand; }, [pendingCommand]);
 
+  // 15-second countdown auto-cancel when a command is pending
+  const handleCancelRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (!pendingCommand) { setConfirmCountdown(0); return; }
+    setConfirmCountdown(15);
+    const interval = setInterval(() => {
+      setConfirmCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleCancelRef.current();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingCommand]);
+
   const addEntry = (role: 'user' | 'jarvis', text: string) => {
     setConversation(prev => [...prev, {
       id: String(++entryCounter),
@@ -98,6 +118,7 @@ export default function App() {
   const handleCancel = useCallback(async () => {
     setPendingCommand(null);
     pendingCommandRef.current = null;
+    setConfirmCountdown(0);
     const msg = 'Understood, command cancelled, sir.';
     addEntry('jarvis', msg);
     setOrbState('speaking');
@@ -105,11 +126,14 @@ export default function App() {
     setOrbState('idle');
   }, []);
 
+  handleCancelRef.current = handleCancel;
+
   const handleExecute = useCallback(async () => {
     const cmd = pendingCommandRef.current;
     if (!cmd) return;
     setPendingCommand(null);
     pendingCommandRef.current = null;
+    setConfirmCountdown(0);
     setIsExecuting(true);
 
     if (isDemoMode) {
@@ -139,14 +163,10 @@ export default function App() {
     // Intercept execute/cancel when command confirmation is pending
     if (pendingCommandRef.current) {
       const lower = userText.trim().toLowerCase();
-      if (lower === 'execute' || lower === 'yes' || lower === 'confirm') {
-        handleExecute();
-        return;
-      }
-      if (lower === 'cancel' || lower === 'no' || lower === 'abort') {
-        handleCancel();
-        return;
-      }
+      const isAffirmative = ['execute', 'yes', 'yeah', 'yep', 'do it', 'confirm', 'go ahead', 'proceed', 'ok', 'okay'].some(w => lower === w || lower.startsWith(w + ' '));
+      const isCancellation = ['cancel', 'no', 'nope', 'abort', 'stop', 'never mind', 'nevermind', 'forget it'].some(w => lower === w || lower.startsWith(w + ' '));
+      if (isAffirmative) { handleExecute(); return; }
+      if (isCancellation) { handleCancel(); return; }
     }
 
     isProcessingRef.current = true;
@@ -310,6 +330,7 @@ export default function App() {
       <CommandConfirmation
         command={pendingCommand}
         isExecuting={isExecuting}
+        countdown={confirmCountdown}
         onExecute={handleExecute}
         onCancel={handleCancel}
       />

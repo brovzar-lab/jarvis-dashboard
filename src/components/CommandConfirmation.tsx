@@ -4,6 +4,7 @@ import type { JarvisCommand } from '../services/command-executor';
 interface Props {
   command: JarvisCommand | null;
   isExecuting: boolean;
+  countdown: number;
   onExecute: () => void;
   onCancel: () => void;
 }
@@ -15,7 +16,9 @@ const ACTION_LABELS: Record<string, string> = {
   get_issue: 'FETCH ISSUE',
 };
 
-export function CommandConfirmation({ command, isExecuting, onExecute, onCancel }: Props) {
+export function CommandConfirmation({ command, isExecuting, countdown, onExecute, onCancel }: Props) {
+  const countdownColor = countdown <= 5 ? 'rgba(255,100,100,0.8)' : 'rgba(0,212,255,0.7)';
+
   return (
     <AnimatePresence>
       {command && (
@@ -41,13 +44,37 @@ export function CommandConfirmation({ command, isExecuting, onExecute, onCancel 
               style={{ borderBottom: '1px solid rgba(0,212,255,0.15)', color: '#00d4ff' }}
             >
               <span>COMMAND PENDING</span>
-              <span
-                className="px-2 py-0.5 rounded text-xs tracking-widest"
-                style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.2)' }}
-              >
-                {ACTION_LABELS[command.action] ?? command.action.toUpperCase()}
-              </span>
+              <div className="flex items-center gap-2">
+                <span
+                  className="px-2 py-0.5 rounded text-xs tracking-widest"
+                  style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.2)' }}
+                >
+                  {ACTION_LABELS[command.action] ?? command.action.toUpperCase()}
+                </span>
+                {countdown > 0 && (
+                  <span
+                    className="text-xs font-mono tabular-nums"
+                    style={{ color: countdownColor, minWidth: '1.5rem', textAlign: 'right' }}
+                  >
+                    {countdown}s
+                  </span>
+                )}
+              </div>
             </div>
+
+            {/* Countdown progress bar */}
+            {countdown > 0 && (
+              <div style={{ height: 2, background: 'rgba(0,212,255,0.08)' }}>
+                <motion.div
+                  style={{
+                    height: '100%',
+                    background: countdown <= 5 ? 'rgba(255,100,100,0.6)' : 'rgba(0,212,255,0.4)',
+                    width: `${(countdown / 15) * 100}%`,
+                    transition: 'width 1s linear, background 0.3s ease',
+                  }}
+                />
+              </div>
+            )}
 
             {/* Body */}
             <div className="px-4 py-4">
@@ -58,7 +85,7 @@ export function CommandConfirmation({ command, isExecuting, onExecute, onCancel 
 
             {/* Voice hint */}
             <div className="px-4 pb-2 text-xs tracking-widest" style={{ color: 'rgba(0,212,255,0.4)' }}>
-              SAY "EXECUTE" OR "CANCEL" — OR USE BUTTONS BELOW
+              SAY "YES", "DO IT", "GO AHEAD" TO CONFIRM — OR "CANCEL", "NO", "STOP"
             </div>
 
             {/* Actions */}
