@@ -3,12 +3,15 @@ import { motion } from 'framer-motion';
 import { VoiceOrb } from './components/VoiceOrb';
 import { AgentGrid } from './components/AgentGrid';
 import { ReviewPanel } from './components/ReviewPanel';
+import { BlockedPanel } from './components/BlockedPanel';
+import { WaitingOnMePanel } from './components/WaitingOnMePanel';
 import { AgendaPanel } from './components/AgendaPanel';
 import { ConversationHistory } from './components/ConversationHistory';
 import { MetricsBar } from './components/MetricsBar';
 import { TextInput } from './components/TextInput';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { useDashboard } from './hooks/useDashboard';
+import { useCostTracker } from './hooks/useCostTracker';
 import { askJarvis } from './services/jarvis-ai';
 import { buildJarvisContext, isDemoMode } from './services/paperclip';
 import { speak, stopSpeaking, unlockAudio } from './services/tts';
@@ -24,6 +27,7 @@ export default function App() {
   const isProcessingRef = useRef(false);
 
   const { data: dashboardData, isLoading } = useDashboard();
+  const sessionCost = useCostTracker();
 
   const addEntry = (role: 'user' | 'jarvis', text: string) => {
     setConversation(prev => [...prev, {
@@ -133,7 +137,7 @@ export default function App() {
       </div>
 
       {/* Metrics bar */}
-      {dashboardData && <MetricsBar data={dashboardData} lastUpdated={lastUpdated} />}
+      {dashboardData && <MetricsBar data={dashboardData} lastUpdated={lastUpdated} sessionCost={sessionCost} />}
 
       {/* Main layout — scrollable on mobile, fixed-height 3-col on desktop */}
       <div className="flex-1 overflow-y-auto md:overflow-y-hidden grid grid-cols-1 md:grid-cols-12 gap-3 p-3 md:p-4" style={{ minHeight: 0 }}>
@@ -182,16 +186,30 @@ export default function App() {
           )}
         </div>
 
-        {/* Right: Review + Agenda — third on mobile (side by side on mobile, stacked on desktop) */}
-        <div className="col-span-1 md:col-span-3 order-3 md:order-none flex flex-row md:flex-col gap-3 desktop-side-panel">
-          <div className="flex-1 min-h-0 min-w-0">
+        {/* Right: Review + Blocked + Waiting + Agenda — stacked, scrollable */}
+        <div className="col-span-1 md:col-span-3 order-3 md:order-none flex flex-col gap-3 desktop-side-panel">
+          <div className="min-h-[100px]">
             {isLoading ? (
               <LoadingSkeleton label="PENDING REVIEW" />
             ) : (
               <ReviewPanel issues={dashboardData?.inReviewIssues ?? []} />
             )}
           </div>
-          <div className="flex-1 min-h-0 min-w-0">
+          <div className="min-h-[90px]">
+            {isLoading ? (
+              <LoadingSkeleton label="BLOCKED" />
+            ) : (
+              <BlockedPanel issues={dashboardData?.blockedIssues ?? []} />
+            )}
+          </div>
+          <div className="min-h-[90px]">
+            {isLoading ? (
+              <LoadingSkeleton label="YOUR CALL" />
+            ) : (
+              <WaitingOnMePanel issues={dashboardData?.waitingOnMeIssues ?? []} />
+            )}
+          </div>
+          <div className="min-h-[90px]">
             {isLoading ? (
               <LoadingSkeleton label="TODAY'S AGENDA" />
             ) : (

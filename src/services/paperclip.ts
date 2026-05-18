@@ -1,4 +1,6 @@
 import type { Agent, Issue, DashboardData } from '../types';
+
+const BOARD_USER_ID = import.meta.env.VITE_BOARD_USER_ID || 'Ii0txDoen0NV1MLw20AKX79qv2cC6eR4';
 import { DEMO_DATA } from './demo-data';
 
 const COMPANY_ID_ENV = import.meta.env.VITE_PAPERCLIP_COMPANY_ID || '';
@@ -57,15 +59,19 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   // Fetch agents and issues from all companies in parallel
   const [companyResults, inboxRes] = await Promise.allSettled([
     Promise.all(companyIds.map(async (cid) => {
-      const [agentsRaw, inReviewRaw, activeRaw] = await Promise.all([
+      const [agentsRaw, inReviewRaw, activeRaw, blockedRaw, waitingRaw] = await Promise.all([
         apiGet<unknown>(`/api/companies/${cid}/agents`).catch(() => []),
         apiGet<unknown>(`/api/companies/${cid}/issues?status=in_review&limit=20`).catch(() => []),
         apiGet<unknown>(`/api/companies/${cid}/issues?status=in_progress&limit=50`).catch(() => []),
+        apiGet<unknown>(`/api/companies/${cid}/issues?status=blocked&limit=30`).catch(() => []),
+        apiGet<unknown>(`/api/companies/${cid}/issues?assigneeUserId=${BOARD_USER_ID}&status=in_review,todo&limit=20`).catch(() => []),
       ]);
       return {
         agents: extractArray<Agent>(agentsRaw, 'agents', 'data'),
         inReview: extractArray<Issue>(inReviewRaw, 'issues', 'data'),
         active: extractArray<Issue>(activeRaw, 'issues', 'data'),
+        blocked: extractArray<Issue>(blockedRaw, 'issues', 'data'),
+        waiting: extractArray<Issue>(waitingRaw, 'issues', 'data'),
       };
     })),
     apiGet<unknown>('/api/agents/me/inbox-lite'),
@@ -77,9 +83,11 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   const agents: Agent[] = [];
   const inReviewIssues: Issue[] = [];
   const activeIssues: Issue[] = [];
+  const blockedIssues: Issue[] = [];
+  const waitingOnMeIssues: Issue[] = [];
 
   if (companyResults.status === 'fulfilled') {
-    for (const { agents: a, inReview: ir, active: ac } of companyResults.value) {
+    for (const { agents: a, inReview: ir, active: ac, blocked: bl, waiting: wt } of companyResults.value) {
       for (const agent of a) {
         if (!seenAgents.has(agent.id)) { seenAgents.add(agent.id); agents.push(agent); }
       }
@@ -88,6 +96,12 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       }
       for (const issue of ac) {
         if (!seenIssues.has(issue.id)) { seenIssues.add(issue.id); activeIssues.push(issue); }
+      }
+      for (const issue of bl) {
+        if (!seenIssues.has(issue.id)) { seenIssues.add(issue.id); blockedIssues.push(issue); }
+      }
+      for (const issue of wt) {
+        if (!seenIssues.has(issue.id)) { seenIssues.add(issue.id); waitingOnMeIssues.push(issue); }
       }
     }
   }
@@ -105,7 +119,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     updatedAt: item.updatedAt ?? new Date().toISOString(),
   }));
 
-  return { agents, inReviewIssues, myInbox, activeIssues };
+  return { agents, inReviewIssues, myInbox, activeIssues, blockedIssues, waitingOnMeIssues };
 }
 
 export function buildJarvisContext(data: DashboardData): string {
@@ -128,6 +142,14 @@ export function buildJarvisContext(data: DashboardData): string {
     `- ${i.identifier}: "${i.title}" [${i.status}] (${i.priority} priority)`
   ).join('\n');
 
+  const waitingSummary = data.waitingOnMeIssues.map(i =>
+    `- ${i.identifier}: "${i.title}" [${i.status}] (${i.priority} priority)`
+  ).join('\n');
+
+  const blockedSummary = data.blockedIssues.map(i =>
+    `- ${i.identifier}: "${i.title}" (${i.priority} priority)`
+  ).join('\n');
+
   return `CURRENT DASHBOARD STATE:
 Date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 Total agents (all companies): ${data.agents.length}
@@ -138,6 +160,12 @@ ${agentSummary}
 
 PENDING REVIEWS:
 ${reviewSummary || 'None'}
+
+WAITING ON YOUR DECISION (${data.waitingOnMeIssues.length} issues):
+${waitingSummary || 'None'}
+
+BLOCKED ISSUES (${data.blockedIssues.length} total):
+${blockedSummary || 'None'}
 
 MY INBOX/AGENDA:
 ${inboxSummary || 'None'}`;

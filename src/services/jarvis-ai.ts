@@ -22,6 +22,8 @@ When responding:
 
 Respond ONLY with plain text (no markdown, no bullets in speech — speak naturally for TTS).`;
 
+import { addClaudeUsage } from './cost-tracker';
+
 export async function askJarvis(
   userMessage: string,
   dashboardContext: string,
@@ -50,6 +52,9 @@ export async function askJarvis(
     }
 
     const data = await res.json();
+    if (data.usage) {
+      addClaudeUsage(data.usage.input_tokens ?? 0, data.usage.output_tokens ?? 0);
+    }
     return data.content?.[0]?.text ?? 'I was unable to process that query, sir.';
   } catch (err) {
     console.warn('Claude proxy request failed:', err);

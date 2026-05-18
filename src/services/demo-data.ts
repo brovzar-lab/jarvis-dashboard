@@ -27,6 +27,18 @@ const DEMO_INBOX: Issue[] = [
   { id: 'i6', identifier: 'APPU-512', title: 'Code review: API rate limiting', status: 'todo', priority: 'high', updatedAt: new Date(Date.now() - 1200000).toISOString() },
 ];
 
+const DEMO_BLOCKED: Issue[] = [
+  { id: 'b1', identifier: 'APPU-477', title: 'Deploy auth service to production', status: 'blocked', priority: 'critical', updatedAt: new Date(Date.now() - 10800000).toISOString() },
+  { id: 'b2', identifier: 'LEMA-93', title: 'Migrate user data to new schema', status: 'blocked', priority: 'high', updatedAt: new Date(Date.now() - 14400000).toISOString() },
+  { id: 'b3', identifier: 'APPU-512', title: 'Enable 2FA for board users', status: 'blocked', priority: 'medium', updatedAt: new Date(Date.now() - 21600000).toISOString() },
+];
+
+const DEMO_WAITING: Issue[] = [
+  { id: 'w1', identifier: 'APPU-480', title: 'Authentication flow redesign', status: 'in_review', priority: 'high', updatedAt: new Date(Date.now() - 3600000).toISOString() },
+  { id: 'w2', identifier: 'APPU-507', title: 'Jarvis dashboard spec approval', status: 'in_review', priority: 'high', updatedAt: new Date(Date.now() - 7200000).toISOString() },
+  { id: 'w3', identifier: 'LEMA-88', title: 'Q2 budget approval needed', status: 'todo', priority: 'medium', updatedAt: new Date(Date.now() - 18000000).toISOString() },
+];
+
 export const DEMO_DATA: DashboardData = {
   agents: DEMO_AGENTS,
   inReviewIssues: DEMO_REVIEW_ISSUES,
@@ -40,4 +52,6 @@ export const DEMO_DATA: DashboardData = {
     assigneeAgentId: a.id,
     updatedAt: new Date().toISOString(),
   })),
+  blockedIssues: DEMO_BLOCKED,
+  waitingOnMeIssues: DEMO_WAITING,
 };

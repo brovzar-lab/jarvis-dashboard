@@ -1,3 +1,5 @@
+import { addTtsChars } from './cost-tracker';
+
 declare global {
   interface Window {
     webkitAudioContext: typeof AudioContext;
@@ -44,6 +46,8 @@ export async function speak(text: string): Promise<void> {
 }
 
 async function speakElevenLabs(text: string): Promise<void> {
+  addTtsChars(text.length);
+
   let res: Response;
   try {
     res = await fetch('/api/tts/speak', {

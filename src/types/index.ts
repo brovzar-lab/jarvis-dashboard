@@ -24,6 +24,8 @@ export interface DashboardData {
   inReviewIssues: Issue[];
   myInbox: Issue[];
   activeIssues: Issue[];
+  blockedIssues: Issue[];
+  waitingOnMeIssues: Issue[];
   dashboardSummary?: Record<string, unknown>;
 }
 
