@@ -10,6 +10,7 @@ import { ConversationHistory } from './components/ConversationHistory';
 import { MetricsBar } from './components/MetricsBar';
 import { TextInput } from './components/TextInput';
 import { CommandConfirmation } from './components/CommandConfirmation';
+import { MicStatusIndicator } from './components/MicStatusIndicator';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { useWakeWord } from './hooks/useWakeWord';
 import { useNotificationPolling } from './hooks/useNotificationPolling';
@@ -49,6 +50,7 @@ export default function App() {
   const [pendingCommand, setPendingCommand] = useState<JarvisCommand | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [confirmCountdown, setConfirmCountdown] = useState(0);
+  const [micMuted, setMicMuted] = useState(false);
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
   const isProcessingRef = useRef(false);
@@ -107,13 +109,21 @@ export default function App() {
     setLastUpdated(new Date());
   };
 
-  // Proactive briefing — fires once per session, 2s after dashboard data arrives
-  useProactiveBriefing(dashboardData, conversation.length > 0, async (text) => {
+  // Proactive briefing — fires once per session (5s desktop, first-gesture mobile)
+  const { isBriefing, skipBriefing } = useProactiveBriefing(dashboardData, conversation.length > 0, async (text) => {
     addEntry('jarvis', text);
     setOrbState('speaking');
     await speak(text);
     setOrbState('idle');
   });
+
+  // Any keypress skips the briefing while it's playing
+  useEffect(() => {
+    if (!isBriefing) return;
+    const onKeyDown = () => skipBriefing();
+    window.addEventListener('keydown', onKeyDown, { once: true });
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isBriefing, skipBriefing]);
 
   const handleCancel = useCallback(async () => {
     setPendingCommand(null);
@@ -277,12 +287,13 @@ export default function App() {
   const { isListening: wakeListening } = useWakeWord(
     () => {
       unlockAudio();
-      if (orbState === 'idle' && !isProcessingRef.current) {
+      stopSpeaking(); // interrupt any active speech
+      if (!isProcessingRef.current) {
         setOrbState('listening');
         startListening();
       }
     },
-    orbState === 'idle' && !isProcessingRef.current,
+    !micMuted && (orbState === 'idle' || orbState === 'speaking') && !isProcessingRef.current,
   );
 
   useNotificationPolling(dashboardData, async (message) => {
@@ -469,6 +480,13 @@ export default function App() {
       >
         PAPERCLIP INTELLIGENCE PLATFORM · EXECUTIVE DASHBOARD v2.0
       </div>
+
+      <MicStatusIndicator
+        wakeActive={wakeListening}
+        commandListening={isListening}
+        muted={micMuted}
+        onToggleMute={() => setMicMuted(m => !m)}
+      />
     </div>
   );
 }
