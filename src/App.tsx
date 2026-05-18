@@ -3,6 +3,9 @@ import { motion } from 'framer-motion';
 import { VoiceOrb } from './components/VoiceOrb';
 import { AgentGrid } from './components/AgentGrid';
 import { AgentBehaviorsPanel } from './components/AgentBehaviorsPanel';
+import { EmailPanel } from './components/EmailPanel';
+import { CalendarPanel } from './components/CalendarPanel';
+import { ObsidianPanel } from './components/ObsidianPanel';
 import { ReviewPanel } from './components/ReviewPanel';
 import { BlockedPanel } from './components/BlockedPanel';
 import { WaitingOnMePanel } from './components/WaitingOnMePanel';
@@ -55,6 +58,7 @@ export default function App() {
   const [micMuted, setMicMuted] = useState(false);
   const [visualAlerts, setVisualAlerts] = useState<string[]>([]);
   const [agentView, setAgentView] = useState<'grid' | 'behaviors'>('behaviors');
+  const [leftTab, setLeftTab] = useState<'agents' | 'email' | 'calendar' | 'brain'>('agents');
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
   const isProcessingRef = useRef(false);
@@ -454,8 +458,30 @@ export default function App() {
             className="panel-border corner-decoration rounded flex items-center justify-center relative overflow-hidden"
             style={{ minHeight: 220 }}
           >
-            <div className="relative flex items-center justify-center" style={{ width: '100%', maxWidth: 320, height: 220 }}>
+            {/* Ambient glow rings */}
+            <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 50%, rgba(0,212,255,0.04) 0%, transparent 70%)' }} />
+            <div className="relative flex items-center justify-center" style={{ width: '100%', maxWidth: 360, height: 220 }}>
+              {/* Left: live clock */}
+              <div className="absolute left-4 bottom-4 text-right hidden md:block">
+                <OrbClock />
+                <div className="text-xs tracking-widest mt-0.5" style={{ color: '#0d2030', fontSize: '0.55rem' }}>
+                  {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}
+                </div>
+              </div>
               <VoiceOrb state={currentOrbState} onClick={handleOrbClick} />
+              {/* Right: state label */}
+              <div className="absolute right-4 bottom-4 text-right hidden md:block">
+                <div className="text-xs tracking-widest" style={{ color: '#0d2030', fontSize: '0.55rem' }}>STATE</div>
+                <motion.div
+                  key={currentOrbState}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-xs tracking-widest font-medium"
+                  style={{ color: currentOrbState === 'idle' ? '#1a4060' : currentOrbState === 'listening' ? '#00d4ff' : currentOrbState === 'thinking' ? '#fbbf24' : '#34d399' }}
+                >
+                  {currentOrbState.toUpperCase()}
+                </motion.div>
+              </div>
               {wakeListening && (
                 <motion.div
                   className="absolute top-2 right-2 flex items-center gap-1.5"
@@ -494,24 +520,57 @@ export default function App() {
           </div>
         </div>
 
-        {/* Left: Agents — second on mobile */}
-        <div className="col-span-1 md:col-span-3 order-2 md:order-none desktop-agents-panel">
-          {isLoading ? (
-            <LoadingSkeleton label={agentView === 'behaviors' ? 'AGENT BEHAVIORS' : 'AGENT STATUS'} />
-          ) : agentView === 'behaviors' ? (
-            <AgentBehaviorsPanel
-              agents={dashboardData?.agents ?? []}
-              activeIssues={dashboardData?.activeIssues ?? []}
-              companyLabels={dashboardData?.companyLabels ?? {}}
-              onToggleView={() => setAgentView('grid')}
-            />
-          ) : (
-            <AgentGrid
-              agents={dashboardData?.agents ?? []}
-              activeIssues={dashboardData?.activeIssues ?? []}
-              onToggleView={() => setAgentView('behaviors')}
-            />
-          )}
+        {/* Left: Intel tabs — second on mobile */}
+        <div className="col-span-1 md:col-span-3 order-2 md:order-none desktop-agents-panel flex flex-col gap-0">
+          {/* Tab bar */}
+          <div
+            className="flex items-center gap-0 mb-0 flex-shrink-0"
+            style={{ borderBottom: '1px solid #0a2a4a' }}
+          >
+            {(['agents', 'email', 'calendar', 'brain'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setLeftTab(tab)}
+                className="flex-1 text-center py-1.5 text-xs tracking-widest transition-colors"
+                style={{
+                  color: leftTab === tab ? '#00d4ff' : '#2a5f80',
+                  background: leftTab === tab ? 'rgba(0,212,255,0.06)' : 'transparent',
+                  borderBottom: leftTab === tab ? '1px solid #00d4ff' : '1px solid transparent',
+                  marginBottom: -1,
+                  fontSize: '0.6rem',
+                }}
+              >
+                {tab === 'brain' ? '◆' : ''}{tab.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          {/* Tab content */}
+          <div className="flex-1 min-h-0">
+            {leftTab === 'agents' ? (
+              isLoading ? (
+                <LoadingSkeleton label={agentView === 'behaviors' ? 'AGENT BEHAVIORS' : 'AGENT STATUS'} />
+              ) : agentView === 'behaviors' ? (
+                <AgentBehaviorsPanel
+                  agents={dashboardData?.agents ?? []}
+                  activeIssues={dashboardData?.activeIssues ?? []}
+                  companyLabels={dashboardData?.companyLabels ?? {}}
+                  onToggleView={() => setAgentView('grid')}
+                />
+              ) : (
+                <AgentGrid
+                  agents={dashboardData?.agents ?? []}
+                  activeIssues={dashboardData?.activeIssues ?? []}
+                  onToggleView={() => setAgentView('behaviors')}
+                />
+              )
+            ) : leftTab === 'email' ? (
+              <EmailPanel />
+            ) : leftTab === 'calendar' ? (
+              <CalendarPanel />
+            ) : (
+              <ObsidianPanel />
+            )}
+          </div>
         </div>
 
         {/* Right: Review + Blocked + Waiting + Agenda — stacked, scrollable */}
@@ -583,6 +642,28 @@ function LiveClock() {
   });
 
   return <span>{time}</span>;
+}
+
+function OrbClock() {
+  const [time, setTime] = useState(() => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <motion.div
+      className="font-mono tracking-wider"
+      style={{ color: '#1a4060', fontSize: '0.95rem', letterSpacing: '0.15em' }}
+      animate={{ opacity: [0.7, 1, 0.7] }}
+      transition={{ duration: 4, repeat: Infinity }}
+    >
+      {time}
+    </motion.div>
+  );
 }
 
 function LoadingSkeleton({ label }: { label: string }) {
