@@ -51,10 +51,14 @@ export default function App() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [confirmCountdown, setConfirmCountdown] = useState(0);
   const [micMuted, setMicMuted] = useState(false);
+  const [visualAlerts, setVisualAlerts] = useState<string[]>([]);
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
   const isProcessingRef = useRef(false);
   const initialHistoryRestoredRef = useRef(false);
+  const lastActivityRef = useRef<number>(Date.now());
+
+  const updateActivity = () => { lastActivityRef.current = Date.now(); };
 
   // Restore convHistoryRef from persisted conversation once on mount
   useEffect(() => {
@@ -169,6 +173,7 @@ export default function App() {
 
   const processQuery = useCallback(async (userText: string) => {
     if (!userText.trim() || isProcessingRef.current) return;
+    updateActivity();
 
     // Intercept execute/cancel when command confirmation is pending
     if (pendingCommandRef.current) {
@@ -296,17 +301,25 @@ export default function App() {
     !micMuted && (orbState === 'idle' || orbState === 'speaking') && !isProcessingRef.current,
   );
 
-  useNotificationPolling(dashboardData, async (message) => {
-    if (orbState !== 'idle') return;
-    addEntry('jarvis', message);
-    setOrbState('speaking');
-    await speak(message);
-    setOrbState('idle');
-  });
+  useNotificationPolling(
+    dashboardData,
+    async (message) => {
+      if (orbState !== 'idle') return;
+      addEntry('jarvis', message);
+      setOrbState('speaking');
+      await speak(message);
+      setOrbState('idle');
+    },
+    (message) => {
+      setVisualAlerts(prev => [...prev, message]);
+    },
+    () => lastActivityRef.current,
+  );
 
   const handleOrbClick = () => {
     // Unlock audio on every user tap so iOS AudioContext stays resumed
     unlockAudio();
+    updateActivity();
 
     if (orbState === 'speaking') {
       stopSpeaking();
@@ -324,6 +337,7 @@ export default function App() {
   const handleTextSubmit = useCallback((text: string) => {
     // Unlock audio from text submit gesture too
     unlockAudio();
+    updateActivity();
     processQuery(text);
   }, [processQuery]);
 
@@ -392,7 +406,15 @@ export default function App() {
       </div>
 
       {/* Metrics bar */}
-      {dashboardData && <MetricsBar data={dashboardData} lastUpdated={lastUpdated} sessionCost={sessionCost} />}
+      {dashboardData && (
+        <MetricsBar
+          data={dashboardData}
+          lastUpdated={lastUpdated}
+          sessionCost={sessionCost}
+          visualAlerts={visualAlerts}
+          onDismissAlerts={() => setVisualAlerts([])}
+        />
+      )}
 
       {/* Main layout — scrollable on mobile, fixed-height 3-col on desktop */}
       <div className="flex-1 overflow-y-auto md:overflow-y-hidden grid grid-cols-1 md:grid-cols-12 gap-3 p-3 md:p-4" style={{ minHeight: 0 }}>

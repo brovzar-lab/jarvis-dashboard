@@ -1,15 +1,24 @@
+import { useState } from 'react';
 import type { DashboardData } from '../types';
 
 interface Props {
   data: DashboardData;
   lastUpdated: Date;
   sessionCost: number;
+  visualAlerts?: string[];
+  onDismissAlerts?: () => void;
 }
 
-export function MetricsBar({ data, lastUpdated, sessionCost }: Props) {
+export function MetricsBar({ data, lastUpdated, sessionCost, visualAlerts = [], onDismissAlerts }: Props) {
+  const [showAlerts, setShowAlerts] = useState(false);
   const activeAgents = data.agents.filter(a => a.status === 'in_progress' || a.status === 'busy').length;
   const inProgressCount = data.myInbox.filter(i => i.status === 'in_progress').length;
   const costStr = sessionCost === 0 ? '$0.0000' : `$${sessionCost.toFixed(4)}`;
+
+  const handleDismissAll = () => {
+    onDismissAlerts?.();
+    setShowAlerts(false);
+  };
 
   return (
     <div
@@ -55,6 +64,47 @@ export function MetricsBar({ data, lastUpdated, sessionCost }: Props) {
         <span className="text-jarvis-dim">SESSION COST</span>
         <span className="font-mono font-bold" style={{ color: sessionCost > 0.01 ? '#ff8800' : '#2a5f80' }}>{costStr}</span>
       </div>
+      {visualAlerts.length > 0 && (
+        <>
+          <div className="h-3 w-px" style={{ background: '#0a2a4a' }} />
+          <div className="relative">
+            <button
+              onClick={() => setShowAlerts(s => !s)}
+              className="flex items-center gap-2"
+            >
+              <span className="text-jarvis-dim">ALERTS</span>
+              <span className="font-bold animate-pulse" style={{ color: '#ff8800' }}>
+                {visualAlerts.length}
+              </span>
+            </button>
+            {showAlerts && (
+              <div
+                className="absolute bottom-full mb-2 right-0 z-50 min-w-[260px] max-w-[380px]"
+                style={{ background: '#020b18', border: '1px solid rgba(255,136,0,0.4)', borderRadius: 4 }}
+              >
+                <div className="p-2 space-y-1 max-h-48 overflow-y-auto">
+                  {visualAlerts.map((alert, i) => (
+                    <div
+                      key={i}
+                      className="text-xs p-2"
+                      style={{ color: '#ff8800', borderBottom: i < visualAlerts.length - 1 ? '1px solid rgba(255,136,0,0.15)' : undefined }}
+                    >
+                      {alert}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={handleDismissAll}
+                  className="w-full p-2 text-xs tracking-widest text-center transition-colors hover:bg-white/5"
+                  style={{ color: '#2a5f80', borderTop: '1px solid rgba(0,212,255,0.1)' }}
+                >
+                  DISMISS ALL
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
       <div className="ml-auto flex items-center gap-2">
         <span className="text-jarvis-dim">LAST SYNC</span>
         <span style={{ color: '#2a5f80' }}>
