@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { VoiceOrb } from './components/VoiceOrb';
 import { AgentGrid } from './components/AgentGrid';
@@ -12,6 +12,7 @@ import { TextInput } from './components/TextInput';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { useDashboard } from './hooks/useDashboard';
 import { useCostTracker } from './hooks/useCostTracker';
+import { useProactiveBriefing } from './hooks/useProactiveBriefing';
 import { askJarvis } from './services/jarvis-ai';
 import { askJarvisStreaming } from './services/jarvis-stream';
 import { addClaudeUsage } from './services/cost-tracker';
@@ -19,14 +20,46 @@ import { buildJarvisContext, isDemoMode } from './services/paperclip';
 import { speak, stopSpeaking, unlockAudio } from './services/tts';
 import type { OrbState, ConversationEntry } from './types';
 
+const CONV_STORAGE_KEY = 'jarvis_conversation_history';
+
 let entryCounter = 0;
+
+function loadConversation(): ConversationEntry[] {
+  try {
+    const saved = localStorage.getItem(CONV_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved) as ConversationEntry[];
+      return parsed.map(e => ({ ...e, timestamp: new Date(e.timestamp) })).slice(-20);
+    }
+  } catch {}
+  return [];
+}
 
 export default function App() {
   const [orbState, setOrbState] = useState<OrbState>('idle');
-  const [conversation, setConversation] = useState<ConversationEntry[]>([]);
+  const [conversation, setConversation] = useState<ConversationEntry[]>(loadConversation);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const isProcessingRef = useRef(false);
+  const initialHistoryRestoredRef = useRef(false);
+
+  // Restore convHistoryRef from persisted conversation once on mount
+  useEffect(() => {
+    if (initialHistoryRestoredRef.current) return;
+    initialHistoryRestoredRef.current = true;
+    convHistoryRef.current = conversation.map(e => ({
+      role: e.role === 'jarvis' ? 'assistant' : 'user' as 'user' | 'assistant',
+      content: e.text,
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist conversation to localStorage on every change
+  useEffect(() => {
+    if (conversation.length > 0) {
+      localStorage.setItem(CONV_STORAGE_KEY, JSON.stringify(conversation.slice(-20)));
+    }
+  }, [conversation]);
 
   const { data: dashboardData, isLoading } = useDashboard();
   const sessionCost = useCostTracker();
@@ -40,6 +73,14 @@ export default function App() {
     }]);
     setLastUpdated(new Date());
   };
+
+  // Proactive briefing — fires once per session, 2s after dashboard data arrives
+  useProactiveBriefing(dashboardData, conversation.length > 0, async (text) => {
+    addEntry('jarvis', text);
+    setOrbState('speaking');
+    await speak(text);
+    setOrbState('idle');
+  });
 
   const processQuery = useCallback(async (userText: string) => {
     if (!userText.trim() || isProcessingRef.current) return;
