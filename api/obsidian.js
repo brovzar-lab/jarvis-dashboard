@@ -18,8 +18,8 @@ export default async function handler(req, res) {
     const data = await vaultRes.json();
     const mdFiles = (data.files ?? []).filter(f => f.endsWith('.md'));
 
-    // Fetch all notes (capped at 30 to avoid overloading the context)
-    const allNotes = await Promise.all(mdFiles.slice(0, 30).map(async (filePath, i) => {
+    // Fetch all notes (capped at 50 to avoid overloading the context)
+    const allNotes = await Promise.all(mdFiles.slice(0, 50).map(async (filePath, i) => {
       try {
         const fileRes = await fetch(`${apiUrl}/vault/${encodeURIComponent(filePath)}`, {
           headers: { Authorization: `Bearer ${apiKey}`, accept: 'application/json' }
@@ -27,7 +27,9 @@ export default async function handler(req, res) {
         const file = fileRes.ok ? await fileRes.json() : {};
         const content = file.content ?? '';
         const cleanContent = content.replace(/^---[\s\S]*?---/, '').trim();
-        const preview = cleanContent.replace(/#+\s/g, '').slice(0, 180);
+        // Lemon Context doc gets full content so Jarvis has complete team/company knowledge
+        const isLemonContext = filePath.toLowerCase().replace(/[-_ /]/g, '').includes('lemoncontext');
+        const preview = cleanContent.replace(/#+\s/g, '').slice(0, isLemonContext ? 6000 : 240);
         const tags = (content.match(/tags:\s*\[([^\]]+)\]/) ?? [])[1]?.split(',').map(t => t.trim().replace(/"/g, '')) ?? [];
         return {
           id: String(i),
@@ -43,7 +45,11 @@ export default async function handler(req, res) {
       }
     }));
 
-    // Filter by query if provided, otherwise return most recent 8
+    // Always include the Lemon Context note if it exists, then filter/limit the rest
+    const lemonContextNote = allNotes.find(n =>
+      n.path.toLowerCase().replace(/[-_ /]/g, '').includes('lemoncontext')
+    );
+
     let results;
     if (query) {
       results = allNotes.filter(n =>
@@ -51,10 +57,14 @@ export default async function handler(req, res) {
         n._fullContent.toLowerCase().includes(query) ||
         n.tags.some(t => t.toLowerCase().includes(query))
       );
-      // If no direct match, return top 6 as context
       if (results.length === 0) results = allNotes.slice(0, 6);
     } else {
-      results = allNotes.slice(0, 8);
+      results = allNotes.slice(0, 10);
+    }
+
+    // Ensure Lemon Context is always in the result set (prepend if not already included)
+    if (lemonContextNote && !results.find(n => n.id === lemonContextNote.id)) {
+      results = [lemonContextNote, ...results];
     }
 
     // Strip internal field before sending

@@ -39,6 +39,7 @@ import type { OrbState, ConversationEntry, Issue, ActionItem } from './types';
 const COMPANY_ID = getCompanyId();
 
 const CONV_STORAGE_KEY = 'jarvis_conversation_history';
+const ITEMS_STORAGE_KEY = 'jarvis_action_items';
 
 let entryCounter = 0;
 
@@ -46,13 +47,17 @@ const ACTION_TRIGGERS = [
   /\byou (need|should|must|have|'ll|will) (to )?(call|email|contact|message|text|reach out|follow up|get back|respond|reply|send|review|sign|prepare|schedule|check|approve|confirm|update|discuss|address|handle|look at|go over|take care of)\b/i,
   /\byou (need to|should|must|have to|'ll (need|want) to|want to|are going to|'re going to)\b/i,
   /\b(don't forget (to )?|make sure (to |you )|be sure to|remember to)\b/i,
-  /\b(get back to|follow up with|reach out to|respond to|reply to)\b/i,
+  /\b(get back to|follow up with|reach out to|respond to|reply to|circle back with)\b/i,
+  /\bi('d| would) (recommend|suggest|advise)\b/i,
+  /\bit('s| is) worth (reviewing|checking|following up|reaching out|calling|noting)\b/i,
+  /\b(priority|prioritize|first thing|critical|urgent|before your (meeting|call|next))\b/i,
 ];
 
 const ACTION_PREAMBLES = [
   /^(you need to|you should|you must|you have to|you'll need to|you'll want to|you will want to|you are going to|you're going to|you want to)\s+/i,
   /^(don't forget to|don't forget |make sure to|make sure you|be sure to|remember to)\s+/i,
-  /^(i('d| would) (recommend|suggest)( you| that you)?)\s+/i,
+  /^(i('d| would) (recommend|suggest|advise)( you| that you)?( to)?)\s+/i,
+  /^(it('s| is) worth (a moment to )?|it would be worth )\s*/i,
 ];
 
 function extractActionItems(text: string): string[] {
@@ -79,6 +84,17 @@ function extractActionItems(text: string): string[] {
   return items;
 }
 
+function loadActionItems(): ActionItem[] {
+  try {
+    const saved = localStorage.getItem(ITEMS_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved) as ActionItem[];
+      return parsed.map(e => ({ ...e, timestamp: new Date(e.timestamp) }));
+    }
+  } catch {}
+  return [];
+}
+
 function loadConversation(): ConversationEntry[] {
   try {
     const saved = localStorage.getItem(CONV_STORAGE_KEY);
@@ -102,7 +118,7 @@ export default function App() {
   const [agentView, setAgentView] = useState<'grid' | 'behaviors'>('behaviors');
   const [leftTab, setLeftTab] = useState<'brief' | 'agents' | 'email' | 'calendar' | 'brain'>('brief');
   const [playingPitchId, setPlayingPitchId] = useState<string | null>(null);
-  const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+  const [actionItems, setActionItems] = useState<ActionItem[]>(loadActionItems);
   const hearPitchSessionRef = useRef(0);
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
@@ -129,6 +145,11 @@ export default function App() {
       localStorage.setItem(CONV_STORAGE_KEY, JSON.stringify(conversation.slice(-20)));
     }
   }, [conversation]);
+
+  // Persist action items to localStorage
+  useEffect(() => {
+    localStorage.setItem(ITEMS_STORAGE_KEY, JSON.stringify(actionItems));
+  }, [actionItems]);
 
   const { data: dashboardData, isLoading, refetch: refreshDashboard } = useDashboard();
   const { data: emails = [] } = useEmail();

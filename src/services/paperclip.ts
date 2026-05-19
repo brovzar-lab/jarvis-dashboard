@@ -178,16 +178,12 @@ export function buildJarvisContext(data: DashboardData, companyId?: string, obsi
     `- ${i.identifier}: "${i.title}" (${i.priority} priority)`
   ).join('\n');
 
-  // Filter inbox for the brief: APPU issues are internal dev noise for Billy.
-  // Keep non-APPU items always; keep APPU only if critical or high priority.
-  const briefInbox = data.myInbox.filter(i => {
-    const isAppu = /^APPU-/i.test(i.identifier ?? '');
-    return !isAppu || i.priority === 'critical' || i.priority === 'high';
-  });
-  const hiddenInboxCount = data.myInbox.length - briefInbox.length;
-  const inboxSummary = briefInbox.map(i =>
-    `- ${i.identifier}: "${i.title}" [${i.status}] (${i.priority} priority)`
-  ).join('\n') + (hiddenInboxCount > 0 ? `\n(${hiddenInboxCount} low-priority APPU issues hidden — ask to see all)` : '');
+  // APPU issues are internal Paperclip dev tickets — not relevant to Billy's executive brief.
+  // They are visible in the Agents tab. Strip them entirely from Jarvis's context.
+  const nonAppuInbox = data.myInbox.filter(i => !/^APPU-/i.test(i.identifier ?? ''));
+  const inboxSummary = nonAppuInbox.length > 0
+    ? nonAppuInbox.map(i => `- ${i.identifier}: "${i.title}" [${i.status}] (${i.priority} priority)`).join('\n')
+    : 'None (internal dev tickets visible in Agents tab, not surfaced here)';
 
   const waitingSummary = data.waitingOnMeIssues.map(i =>
     `- ${i.identifier}: "${i.title}" [${i.status}] (${i.priority} priority)`
@@ -221,14 +217,33 @@ export function buildJarvisContext(data: DashboardData, companyId?: string, obsi
     .map(i => `${i.identifier} → ${i.id}`)
     .join('\n');
 
+  // Check for a "Lemon Context" doc in the vault — it contains comprehensive company/team info
+  const lemonContextNote = obsidianNotes?.find(n =>
+    n.title.toLowerCase().replace(/[-_ ]/g, '').includes('lemoncontext') ||
+    n.title.toLowerCase().includes('lemon context')
+  );
+  const lemonContextSection = lemonContextNote
+    ? `LEMON CONTEXT DOC ("${lemonContextNote.title}"):
+${lemonContextNote.preview}
+`
+    : `LEMON FILMS TEAM — ABBREVIATIONS USED IN CALENDAR EVENTS AND NOTES:
+- BR = Billy Rovzar (that's YOU — founder & CEO of Lemon Films)
+  "BR" in calendar event titles means your attendance is required
+- IT = Isaac Toussier
+- ES = Erica Sanchez
+When reading calendar events aloud, always expand initials to full names.
+(Connect Obsidian vault to load the full "Lemon Context" document automatically.)
+`;
+
   const vaultSection = obsidianNotes && obsidianNotes.length > 0
     ? `OBSIDIAN VAULT NOTES (${obsidianNotes.length} notes — use these to answer questions about Billy's strategy, meetings, research, and notes):
 ${obsidianNotes.map(n =>
   `- "${n.title}" [${n.path}] ${n.tags.length ? `#${n.tags.join(' #')}` : ''}${n.preview ? `\n  Preview: ${n.preview}` : ''}`
 ).join('\n')}`
-    : 'OBSIDIAN VAULT NOTES: Not connected (demo mode). Set OBSIDIAN_API_URL and OBSIDIAN_API_KEY on Vercel to enable.';
+    : 'OBSIDIAN VAULT NOTES: Not connected. Set OBSIDIAN_API_URL and OBSIDIAN_API_KEY on Vercel to enable.';
 
-  return `CURRENT DASHBOARD STATE:
+  return `${lemonContextSection}
+CURRENT DASHBOARD STATE:
 Date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 Total agents (all companies): ${data.agents.length}
 Active agents: ${activeAgents.length}/${data.agents.length}

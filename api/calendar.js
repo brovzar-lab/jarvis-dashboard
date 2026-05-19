@@ -8,7 +8,25 @@
 //
 // Event filter: only events with "BR" in the title are returned.
 // "BR" is Billy's shorthand for events where his attendance is required.
+// Timezone: all times displayed in America/Mexico_City.
 import { getGoogleAccessToken } from './_lib/google-token.js';
+
+const DISPLAY_TIMEZONE = 'America/Mexico_City';
+
+// Compute start/end of today in Mexico City, returned as UTC Date objects for the API query.
+function getMexicoCityDayRange() {
+  const now = new Date();
+  const todayMX = now.toLocaleDateString('sv', { timeZone: DISPLAY_TIMEZONE }); // "YYYY-MM-DD"
+  // Derive the Mexico City UTC offset by comparing what MX local time "would be" if parsed as UTC
+  const mxLocalStr = now.toLocaleDateString('sv', { timeZone: DISPLAY_TIMEZONE })
+    + 'T' + now.toLocaleTimeString('sv', { timeZone: DISPLAY_TIMEZONE });
+  const mxAsIfUTC = new Date(mxLocalStr + 'Z');
+  const offsetMs = now.getTime() - mxAsIfUTC.getTime(); // e.g. 18000000 = UTC-5 (CDT)
+  return {
+    timeMin: new Date(new Date(todayMX + 'T00:00:00Z').getTime() + offsetMs),
+    timeMax: new Date(new Date(todayMX + 'T23:59:59.999Z').getTime() + offsetMs),
+  };
+}
 
 async function resolveCalendarId(token) {
   // Explicit override takes highest priority
@@ -41,12 +59,11 @@ export default async function handler(req, res) {
     const calendarId = await resolveCalendarId(token);
 
     const now = new Date();
-    const endOfDay = new Date(now);
-    endOfDay.setHours(23, 59, 59, 999);
+    const { timeMin, timeMax } = getMexicoCityDayRange();
 
-    // Fetch more results so we have enough after the BR filter
+    // Fetch full day in Mexico City so all BR events appear (past ones are dimmed in the UI)
     const calRes = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?timeMin=${encodeURIComponent(now.toISOString())}&timeMax=${encodeURIComponent(endOfDay.toISOString())}&singleEvents=true&orderBy=startTime&maxResults=50`,
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?timeMin=${encodeURIComponent(timeMin.toISOString())}&timeMax=${encodeURIComponent(timeMax.toISOString())}&singleEvents=true&orderBy=startTime&maxResults=50`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     if (!calRes.ok) return res.status(204).end();
@@ -66,7 +83,7 @@ export default async function handler(req, res) {
       return {
         id: e.id,
         title: e.summary ?? 'Untitled',
-        time: start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+        time: start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: DISPLAY_TIMEZONE }),
         duration: durationMin > 0 ? `${durationMin >= 60 ? `${Math.floor(durationMin / 60)}h` : ''}${durationMin % 60 > 0 ? `${durationMin % 60}m` : ''}` : '',
         type,
         attendees: (e.attendees ?? []).length,
