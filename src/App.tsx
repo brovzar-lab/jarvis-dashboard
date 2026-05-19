@@ -450,12 +450,12 @@ export default function App() {
         />
       )}
 
-      {/* Main layout — scrollable on mobile, fixed-height 3-col on desktop */}
-      <div className="flex-1 overflow-y-auto md:overflow-y-hidden grid grid-cols-1 md:grid-cols-12 gap-3 p-3 md:p-4" style={{ minHeight: 0 }}>
+      {/* Main layout — 3-col flex row on desktop, stacked on mobile */}
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-3 p-3 md:p-4 overflow-y-auto md:overflow-hidden">
 
-        {/* Center: Orb (full-height, single panel) — first on mobile, cols 5-9 on desktop */}
-        <div className="col-span-1 md:col-span-5 md:col-start-5 order-first md:order-none flex flex-col">
-          <div className="flex-1 panel-border corner-decoration rounded flex flex-col relative overflow-hidden" style={{ minHeight: 360 }}>
+        {/* Center: Orb — first on mobile (order-first), visual col 2 on desktop (md:order-2) */}
+        <div className="md:flex-[40] min-h-0 flex flex-col order-first md:order-2">
+          <div className="flex-1 panel-border corner-decoration rounded flex flex-col relative overflow-hidden">
             {/* Grid + radial glow background */}
             <div
               className="absolute inset-0 pointer-events-none"
@@ -483,8 +483,8 @@ export default function App() {
             )}
 
             {/* Orb — centered, takes up flex space */}
-            <div className="flex-1 flex items-center justify-center relative py-6">
-              <VoiceOrb state={currentOrbState} onClick={handleOrbClick} orbSize={200} />
+            <div className="flex-1 flex items-center justify-center relative">
+              <VoiceOrb state={currentOrbState} onClick={handleOrbClick} orbSize={260} />
             </div>
 
             {/* Below orb: label + large clock + state + stats */}
@@ -544,8 +544,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Left: Intel tabs — second on mobile, cols 1-4 on desktop */}
-        <div className="col-span-1 md:col-span-4 md:col-start-1 order-2 md:order-none desktop-agents-panel flex flex-col gap-0">
+        {/* Left: Intel tabs — second on mobile (order-2), visual col 1 on desktop (md:order-1) */}
+        <div className="md:flex-[35] min-h-0 desktop-agents-panel flex flex-col gap-0 order-2 md:order-1">
           {/* Tab bar */}
           <div
             className="flex items-center gap-0 mb-0 flex-shrink-0"
@@ -603,8 +603,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right: Review + Blocked + Waiting + Agenda — stacked, scrollable, cols 10-12 on desktop */}
-        <div className="col-span-1 md:col-span-3 md:col-start-10 order-3 md:order-none flex flex-col gap-3 desktop-side-panel">
+        {/* Right: Review + Blocked + Waiting + Agenda — visual col 3 on desktop */}
+        <div className="md:flex-[25] min-h-0 flex flex-col gap-3 desktop-side-panel order-3">
           <div className="min-h-[100px]">
             {isLoading ? (
               <LoadingSkeleton label="PENDING REVIEW" />
