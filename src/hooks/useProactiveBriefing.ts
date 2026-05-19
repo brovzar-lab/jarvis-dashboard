@@ -43,7 +43,7 @@ function buildBriefing(data: DashboardData): string {
 
 export function useProactiveBriefing(
   dashboardData: DashboardData | undefined,
-  hasExistingHistory: boolean,
+  _hasExistingHistory: boolean,
   onBriefing: (text: string) => Promise<void>,
 ): { isBriefing: boolean; skipBriefing: () => void } {
   const calledRef = useRef(false);
@@ -64,36 +64,20 @@ export function useProactiveBriefing(
     calledRef.current = true;
     sessionStorage.setItem(SESSION_KEY, 'true');
 
-    const text = hasExistingHistory
-      ? 'Welcome back, sir. Picking up where we left off.'
-      : buildBriefing(dashboardData);
+    // Always deliver the full morning brief — no "Welcome back" fallback
+    const text = buildBriefing(dashboardData);
 
     const fireBriefing = () => {
       setIsBriefing(true);
       onBriefingRef.current(text).finally(() => setIsBriefing(false));
     };
 
-    if (isMobile) {
-      // Mobile: fire on first user gesture — browsers block autoplay audio until interaction
-      let cleanupListeners: () => void;
-      const onFirstGesture = () => {
-        cleanupListeners();
-        setTimeout(fireBriefing, 500); // small delay so the gesture completes
-      };
-      cleanupListeners = () => {
-        document.removeEventListener('click', onFirstGesture);
-        document.removeEventListener('touchstart', onFirstGesture);
-        document.removeEventListener('scroll', onFirstGesture);
-      };
-      document.addEventListener('click', onFirstGesture, { once: true });
-      document.addEventListener('touchstart', onFirstGesture, { once: true });
-      document.addEventListener('scroll', onFirstGesture, { once: true, passive: true });
-      return cleanupListeners;
-    }
-
-    const timer = setTimeout(fireBriefing, 5000);
+    // Desktop and mobile: fire 3s after dashboard data is ready.
+    // Mic permission is pre-warmed by App.tsx before music starts, so audio is
+    // already unblocked by the time this fires.
+    const timer = setTimeout(fireBriefing, 3000);
     return () => clearTimeout(timer);
-  }, [dashboardData, hasExistingHistory]);
+  }, [dashboardData]);
 
   return { isBriefing, skipBriefing };
 }

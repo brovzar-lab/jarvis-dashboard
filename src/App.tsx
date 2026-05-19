@@ -152,6 +152,7 @@ export default function App() {
   const [actionItems, setActionItems] = useState<ActionItem[]>(loadActionItems);
   const [contextCard, setContextCard] = useState<ContextCard | null>(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
+  const [micReady, setMicReady] = useState(false);
   const hearPitchSessionRef = useRef(0);
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
@@ -198,16 +199,33 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Try immediate autoplay on mount (works if browser has granted autoplay permission)
-  // Falls back to first-interaction start via unlockAudio() → startMorningThemeOnUnlock()
+  // Pre-warm mic permission BEFORE starting music.
+  // Without this, SpeechRecognition.start() triggers the browser permission dialog
+  // mid-playback, which interrupts audio on Chrome. By requesting permission first,
+  // the dialog fires before music starts, and subsequent recognition.start() calls
+  // are silent (permission already granted).
   useEffect(() => {
-    tryStartMorningTheme();
-    const poll = setInterval(() => {
-      const playing = isMorningThemePlaying();
-      setMusicPlaying(playing);
-      if (!playing) clearInterval(poll);
-    }, 1000);
-    return () => clearInterval(poll);
+    let pollInterval: ReturnType<typeof setInterval>;
+
+    async function initAudio() {
+      if (navigator.mediaDevices?.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream.getTracks().forEach(t => t.stop());
+        } catch { /* permission denied — continue without mic */ }
+      }
+      // Mic permission resolved (granted or denied) — safe to start music
+      tryStartMorningTheme();
+      setMicReady(true);
+      pollInterval = setInterval(() => {
+        const playing = isMorningThemePlaying();
+        setMusicPlaying(playing);
+        if (!playing) clearInterval(pollInterval);
+      }, 1000);
+    }
+
+    initAudio();
+    return () => { if (pollInterval) clearInterval(pollInterval); };
   }, []);
 
   // Load persistent memory context from Obsidian once on mount
@@ -574,7 +592,9 @@ export default function App() {
         startListening();
       }
     },
-    !micMuted && (orbState === 'idle' || orbState === 'speaking') && !isProcessingRef.current,
+    // Gate on micReady: don't start wake word until mic permission is resolved so
+    // SpeechRecognition never shows the permission dialog while music is playing.
+    micReady && !micMuted && (orbState === 'idle' || orbState === 'speaking') && !isProcessingRef.current,
   );
 
   useNotificationPolling(
