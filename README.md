@@ -1,6 +1,43 @@
-# React + TypeScript + Vite
+# Jarvis AI Executive Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Paperclip Intelligence Platform — Vite + React + TypeScript SPA deployed on Vercel with serverless API proxies for Paperclip, Gmail, Google Calendar, and Obsidian Brain.
+
+## Wiring live data
+
+All four panels (AGENTS, EMAIL, CALENDAR, BRAIN) fall back to demo data when their Vercel env vars are absent. To enable live data:
+
+1. Copy `.env.example` to `.env.local` and fill in your values.
+2. See the full wiring dossier in [APPU-622](https://paperclip.billyrovzar.com/APPU/issues/APPU-622) for step-by-step instructions covering:
+   - Google OAuth2 refresh-token setup (Phases 2 + 3)
+   - Cloudflare Tunnel for Obsidian (Phase 3)
+   - Vercel env var deployment via API (Phase 5)
+
+**Quick env var reference:**
+
+| Variable | Purpose |
+|---|---|
+| `VITE_PAPERCLIP_API_URL` | `https://paperclip.billyrovzar.com` |
+| `PAPERCLIP_API_URL` | same as above (server-side) |
+| `VITE_PAPERCLIP_COMPANY_ID` | APPU company UUID |
+| `PAPERCLIP_API_KEY_DA1766D2` | Paperclip API key for APPU |
+| `GOOGLE_CLIENT_ID` | Google OAuth2 client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth2 client secret |
+| `GOOGLE_REFRESH_TOKEN` | Long-lived refresh token (Gmail + Calendar) |
+| `OBSIDIAN_API_URL` | `https://obsidian.billyrovzar.com` (via Cloudflare Tunnel) |
+| `OBSIDIAN_API_KEY` | Obsidian Local REST API key |
+
+---
+
+## Development
+
+```bash
+npm install
+npm run dev
+```
+
+---
+
+# Vite template notes
 
 Currently, two official plugins are available:
 
