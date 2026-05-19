@@ -22,7 +22,7 @@ export async function askJarvisStreaming(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 600,
+      max_tokens: 800,
       system,
       messages,
       stream: true,

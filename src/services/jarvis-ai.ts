@@ -41,6 +41,20 @@ Intent examples:
 
 CRITICAL: Only return JSON when the user is clearly requesting a Paperclip mutation or issue fetch. For all other queries respond with plain text spoken naturally for TTS (no markdown, no bullets).
 
+VISUAL CONTEXT CARDS:
+When your spoken response discusses a specific topic (a movie/pitch, weather, a project, a person, or an issue), append ONE context card at the very end of your response — AFTER your complete spoken text. The card displays silently on the user's left visual panel and is never spoken aloud.
+Format (at the very end, on its own line after your reply):
+[CTX_CARD]{"kind":"movie","title":"Film Title","subtitle":"Genre · Status","meta":{"Key1":"Value","Key2":"Value"}}[/CTX_CARD]
+Kind options: "movie" | "weather" | "project" | "person" | "issue" | "generic"
+Meta: up to 4 key-value pairs; values must be very short phrases (3-6 words, no periods, no sentence-ending punctuation)
+Examples:
+- Movie: {"kind":"movie","title":"Runway","subtitle":"Drama · Development","meta":{"Genre":"Drama","Status":"In Development","Director":"TBD"}}
+- Weather: {"kind":"weather","title":"Los Angeles","subtitle":"Current Conditions","meta":{"Temp":"72°F","Condition":"Partly Cloudy","High":"78°","Low":"65°"}}
+- Project: {"kind":"project","title":"Jarvis","subtitle":"Active · High Priority","meta":{"Open Issues":"5","Stage":"Production"}}
+- Person: {"kind":"person","title":"Billy Rovzar","subtitle":"CEO · Lemon Studios","meta":{"Role":"Chief Executive"}}
+- Issue: {"kind":"issue","title":"Brief panel update","subtitle":"APPU-642 · In Progress","meta":{"Priority":"Medium","Assignee":"Debugger"}}
+Omit the context card for: simple acknowledgements, command responses, short one-liner replies, or when no specific entity is being discussed.
+
 ACCURACY AND ANTI-HALLUCINATION RULES (CRITICAL — these override everything else):
 - ONLY cite issues, agents, or counts that appear verbatim in the CURRENT DASHBOARD STATE.
 - ONLY cite emails that appear in the RELEVANT EMAIL HISTORY section — never fabricate email content, senders, or subjects not in that section.
@@ -77,7 +91,7 @@ export async function askJarvis(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 600,
+        max_tokens: 800,
         system,
         messages,
       }),

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { VoiceOrb } from './components/VoiceOrb';
 import { AgentGrid } from './components/AgentGrid';
 import { AgentBehaviorsPanel } from './components/AgentBehaviorsPanel';
@@ -35,7 +35,7 @@ import { speak, stopSpeaking, unlockAudio } from './services/tts';
 import { tryStartMorningTheme, stopMorningTheme, isMorningThemePlaying } from './services/morning-theme';
 import { parseCommandResponse, executeCommand } from './services/command-executor';
 import type { JarvisCommand } from './services/command-executor';
-import type { OrbState, ConversationEntry, Issue, ActionItem } from './types';
+import type { OrbState, ConversationEntry, Issue, ActionItem, ContextCard, ContextCardKind } from './types';
 
 const COMPANY_ID = getCompanyId();
 
@@ -96,6 +96,36 @@ function loadActionItems(): ActionItem[] {
   return [];
 }
 
+const CTX_CARD_RE = /\[CTX_CARD\]([\s\S]*?)\[\/CTX_CARD\]/;
+const VALID_KINDS: ContextCardKind[] = ['movie', 'weather', 'project', 'person', 'issue', 'generic'];
+
+function parseContextCard(text: string): { card: ContextCard | null; cleanText: string } {
+  const cleanText = text.replace(/\[CTX_CARD\][\s\S]*?\[\/CTX_CARD\]/g, '').trim();
+  let card: ContextCard | null = null;
+  const match = CTX_CARD_RE.exec(text);
+  if (match) {
+    try {
+      const data = JSON.parse(match[1].trim()) as {
+        kind?: string;
+        title?: string;
+        subtitle?: string;
+        meta?: Record<string, string>;
+      };
+      if (data.title) {
+        card = {
+          id: String(Date.now()),
+          kind: VALID_KINDS.includes(data.kind as ContextCardKind) ? (data.kind as ContextCardKind) : 'generic',
+          title: data.title,
+          subtitle: data.subtitle,
+          meta: data.meta,
+          timestamp: new Date(),
+        };
+      }
+    } catch { /* malformed JSON — ignore */ }
+  }
+  return { card, cleanText };
+}
+
 function loadConversation(): ConversationEntry[] {
   try {
     const saved = localStorage.getItem(CONV_STORAGE_KEY);
@@ -120,6 +150,7 @@ export default function App() {
   const [leftTab, setLeftTab] = useState<'brief' | 'agents' | 'email' | 'calendar' | 'brain'>('brief');
   const [playingPitchId, setPlayingPitchId] = useState<string | null>(null);
   const [actionItems, setActionItems] = useState<ActionItem[]>(loadActionItems);
+  const [contextCard, setContextCard] = useState<ContextCard | null>(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const hearPitchSessionRef = useRef(0);
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
@@ -453,6 +484,7 @@ export default function App() {
         convHistoryRef.current.slice(-8),
         (sentence) => {
           if (commandDetected) return; // suppress TTS for command JSON
+          if (sentence.includes('[CTX_CARD]') || sentence.includes('[/CTX_CARD]')) return; // skip card block
           if (firstSentence) {
             firstSentence = false;
             setOrbState('speaking');
@@ -479,11 +511,13 @@ export default function App() {
             setOrbState('speaking');
             speak(command.confirmation + ' Say execute to proceed, or cancel.').then(() => setOrbState('idle'));
           } else {
+            const { card, cleanText } = parseContextCard(fullText);
+            if (card) setContextCard(card);
             setConversation(prev => prev.map(e =>
-              e.id === jarvisEntryId ? { ...e, text: fullText } : e
+              e.id === jarvisEntryId ? { ...e, text: cleanText } : e
             ));
-            convHistoryRef.current.push({ role: 'assistant', content: fullText });
-            addActionItems(fullText);
+            convHistoryRef.current.push({ role: 'assistant', content: cleanText });
+            addActionItems(cleanText);
           }
         },
         memoryContext || undefined
@@ -506,11 +540,13 @@ export default function App() {
           await speak(command.confirmation + ' Say execute to proceed, or cancel.');
           setOrbState('idle');
         } else {
-          convHistoryRef.current.push({ role: 'assistant', content: response });
-          addEntry('jarvis', response);
-          addActionItems(response);
+          const { card: fbCard, cleanText: fbClean } = parseContextCard(response);
+          if (fbCard) setContextCard(fbCard);
+          convHistoryRef.current.push({ role: 'assistant', content: fbClean });
+          addEntry('jarvis', fbClean);
+          addActionItems(fbClean);
           setOrbState('speaking');
-          await speak(response);
+          await speak(fbClean);
           setOrbState('idle');
         }
       } catch (fallbackErr) {
@@ -801,6 +837,7 @@ export default function App() {
                 onDismissItem={handleDismissItem}
                 lastUpdated={lastUpdated}
                 onAction={handleTextSubmit}
+                contextCard={contextCard}
               />
             ) : leftTab === 'agents' ? (
               isLoading ? (
@@ -964,14 +1001,85 @@ function TimePeriodIndicator() {
   );
 }
 
+const CARD_COLORS: Record<ContextCardKind, { accent: string; bg: string; border: string }> = {
+  movie:   { accent: '#f97316', bg: 'rgba(249,115,22,0.06)',  border: 'rgba(249,115,22,0.2)'  },
+  weather: { accent: '#0ea5e9', bg: 'rgba(14,165,233,0.06)', border: 'rgba(14,165,233,0.2)'  },
+  project: { accent: '#00d4ff', bg: 'rgba(0,212,255,0.06)',  border: 'rgba(0,212,255,0.2)'   },
+  person:  { accent: '#a855f7', bg: 'rgba(168,85,247,0.06)', border: 'rgba(168,85,247,0.2)'  },
+  issue:   { accent: '#fbbf24', bg: 'rgba(251,191,36,0.06)', border: 'rgba(251,191,36,0.2)'  },
+  generic: { accent: '#64748b', bg: 'rgba(100,116,139,0.04)',border: 'rgba(100,116,139,0.15)' },
+};
+
+const CARD_ICONS: Record<ContextCardKind, string> = {
+  movie: '◆', weather: '◈', project: '⬡', person: '◉', issue: '▶', generic: '◈',
+};
+
+const CARD_LABELS: Record<ContextCardKind, string> = {
+  movie: 'MOVIE', weather: 'WEATHER', project: 'PROJECT', person: 'PERSON', issue: 'ISSUE', generic: 'CONTEXT',
+};
+
+function ContextCardDisplay({ card }: { card: ContextCard }) {
+  const colors = CARD_COLORS[card.kind];
+  const metaEntries = card.meta ? Object.entries(card.meta) : [];
+  return (
+    <motion.div
+      key={card.id}
+      initial={{ opacity: 0, y: -6, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -6, scale: 0.97 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      style={{
+        background: colors.bg,
+        border: `1px solid ${colors.border}`,
+        borderRadius: 4,
+        padding: '10px 12px',
+        marginBottom: 10,
+        flexShrink: 0,
+      }}
+    >
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <span style={{ color: colors.accent, fontSize: '0.7rem' }}>{CARD_ICONS[card.kind]}</span>
+        <span className="tracking-widest" style={{ color: colors.accent, fontSize: '0.48rem', opacity: 0.8 }}>
+          {CARD_LABELS[card.kind]}
+        </span>
+        {card.subtitle && (
+          <>
+            <span style={{ color: colors.accent, fontSize: '0.48rem', opacity: 0.3 }}>·</span>
+            <span className="tracking-widest truncate" style={{ color: colors.accent, fontSize: '0.48rem', opacity: 0.6 }}>
+              {card.subtitle.toUpperCase()}
+            </span>
+          </>
+        )}
+      </div>
+      <div className="font-mono" style={{ color: colors.accent, fontSize: '0.88rem', fontWeight: 500, lineHeight: 1.3, marginBottom: metaEntries.length ? 0 : 0 }}>
+        {card.title}
+      </div>
+      {metaEntries.length > 0 && (
+        <>
+          <div style={{ height: 1, background: colors.border, margin: '7px 0' }} />
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+            {metaEntries.map(([k, v]) => (
+              <div key={k}>
+                <div className="tracking-widest" style={{ color: colors.accent, opacity: 0.4, fontSize: '0.42rem' }}>{k.toUpperCase()}</div>
+                <div style={{ color: colors.accent, opacity: 0.85, fontSize: '0.72rem', lineHeight: 1.3 }}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </motion.div>
+  );
+}
+
 interface BriefingPanelProps {
   actionItems: ActionItem[];
   onDismissItem: (id: string) => void;
   lastUpdated: Date;
   onAction: (text: string) => void;
+  contextCard: ContextCard | null;
 }
 
-function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction }: BriefingPanelProps) {
+function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard }: BriefingPanelProps) {
   const hour = new Date().getHours();
   const periodLabel = hour < 12 ? 'MORNING CHECK-IN' : hour < 17 ? 'MID-DAY CHECK-IN' : 'END-OF-DAY BRIEF';
   const CHIPS = [
@@ -1002,6 +1110,13 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction }: Br
         </div>
       </div>
       <div className="glow-line flex-shrink-0" />
+
+      {/* Live visual context card — updates as Jarvis speaks */}
+      <div className="flex-shrink-0 pt-2">
+        <AnimatePresence mode="wait">
+          {contextCard && <ContextCardDisplay key={contextCard.id} card={contextCard} />}
+        </AnimatePresence>
+      </div>
 
       {/* Action items feed */}
       <div className="flex-1 overflow-y-auto min-h-0 py-2">

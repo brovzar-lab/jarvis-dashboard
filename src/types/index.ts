@@ -52,3 +52,14 @@ export interface ActionItem {
   text: string;
   timestamp: Date;
 }
+
+export type ContextCardKind = 'movie' | 'weather' | 'project' | 'person' | 'issue' | 'generic';
+
+export interface ContextCard {
+  id: string;
+  kind: ContextCardKind;
+  title: string;
+  subtitle?: string;
+  meta?: Record<string, string>;
+  timestamp: Date;
+}
