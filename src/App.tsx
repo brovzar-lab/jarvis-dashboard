@@ -785,35 +785,35 @@ export default function App() {
 
         {/* Right: Review + Blocked + Waiting + Agenda — visual col 3 on desktop */}
         <div className="md:flex-[25] min-h-0 flex flex-col gap-3 desktop-side-panel order-3">
-          <div className="min-h-[100px]">
+          <div className="flex-1 min-h-[100px]">
             {isLoading ? (
               <LoadingSkeleton label="PENDING REVIEW" />
             ) : (
               <ReviewPanel issues={dashboardData?.inReviewIssues ?? []} onRefresh={refreshDashboard} newIssueIds={newIssueIds} />
             )}
           </div>
-          <div className="min-h-[90px]">
+          <div className="flex-1 min-h-[90px]">
             {isLoading ? (
               <LoadingSkeleton label="BLOCKED" />
             ) : (
               <BlockedPanel issues={dashboardData?.blockedIssues ?? []} onRefresh={refreshDashboard} newIssueIds={newIssueIds} />
             )}
           </div>
-          <div className="min-h-[90px]">
+          <div className="flex-1 min-h-[90px]">
             {isLoading ? (
               <LoadingSkeleton label="YOUR CALL" />
             ) : (
               <WaitingOnMePanel issues={dashboardData?.waitingOnMeIssues ?? []} onRefresh={refreshDashboard} newIssueIds={newIssueIds} />
             )}
           </div>
-          <div className="min-h-[90px]">
+          <div className="flex-1 min-h-[90px]">
             {isLoading ? (
               <LoadingSkeleton label="LEMA PITCHES" />
             ) : (
               <PitchesPanel issues={dashboardData?.lemaPitches ?? []} onHearPitch={handleHearPitch} playingPitchId={playingPitchId} />
             )}
           </div>
-          <div className="min-h-[90px]">
+          <div className="flex-1 min-h-[90px]">
             {isLoading ? (
               <LoadingSkeleton label="TODAY'S AGENDA" />
             ) : (
