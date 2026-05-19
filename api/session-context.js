@@ -16,14 +16,9 @@ const LEMON_CONTEXT_PATH = ensureMd(process.env.OBSIDIAN_LEMON_CONTEXT_PATH || '
 
 const PEOPLE_BOOTSTRAP = `# Jarvis People
 
-- BR: Billy Rovzar (CEO, Lemon Studios)
-- IT: Isaac Toussier (Head of Development)
-- ES: Erica Sanchez Su (Head of Production)
-- FR: Fernando Rovzar (Cofounder / Creative Lead)
-- HC: Heazel Cid (Executive Assistant)
-- PZ: Patrik Zielinski (CFO)
-- ON: Oliver Nava (Development Executive)
-- AL: Alejandro Lozano (Director / Cofounder)
+- BR: Billy Rozier (CEO, Lemaa)
+- IT: [expand from Lemon Context]
+- ES: [expand from Lemon Context]
 `;
 
 // In-process cache — survives across warm Lambda invocations within the same session.
