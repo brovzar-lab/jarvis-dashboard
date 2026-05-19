@@ -5,12 +5,17 @@ export async function askJarvisStreaming(
   dashboardContext: string,
   conversationHistory: Array<{ role: string; content: string }>,
   onSentence: (sentence: string) => void,
-  onDone: (fullText: string, usage: { input_tokens: number; output_tokens: number }) => void
+  onDone: (fullText: string, usage: { input_tokens: number; output_tokens: number }) => void,
+  memoryContext?: string
 ): Promise<void> {
   const messages = [
     ...conversationHistory.slice(-6),
     { role: 'user', content: `${dashboardContext}\n\nUser query: ${userMessage}` },
   ];
+
+  const system = memoryContext
+    ? `${JARVIS_SYSTEM_PROMPT}\n\n=== PERSISTENT MEMORY (from Obsidian) ===\n${memoryContext}`
+    : JARVIS_SYSTEM_PROMPT;
 
   const res = await fetch('/api/claude/messages', {
     method: 'POST',
@@ -18,7 +23,7 @@ export async function askJarvisStreaming(
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
       max_tokens: 600,
-      system: JARVIS_SYSTEM_PROMPT,
+      system,
       messages,
       stream: true,
     }),

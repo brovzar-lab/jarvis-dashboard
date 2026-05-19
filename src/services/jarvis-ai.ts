@@ -50,12 +50,17 @@ import { addClaudeUsage } from './cost-tracker';
 export async function askJarvis(
   userMessage: string,
   dashboardContext: string,
-  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+  memoryContext?: string
 ): Promise<string> {
   const messages = [
     ...conversationHistory.slice(-6),
     { role: 'user' as const, content: `${dashboardContext}\n\nUser query: ${userMessage}` },
   ];
+
+  const system = memoryContext
+    ? `${JARVIS_SYSTEM_PROMPT}\n\n=== PERSISTENT MEMORY (from Obsidian) ===\n${memoryContext}`
+    : JARVIS_SYSTEM_PROMPT;
 
   try {
     const res = await fetch('/api/claude/messages', {
@@ -64,7 +69,7 @@ export async function askJarvis(
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 600,
-        system: JARVIS_SYSTEM_PROMPT,
+        system,
         messages,
       }),
     });

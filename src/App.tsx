@@ -156,12 +156,23 @@ export default function App() {
   const { data: calendarEvents = [] } = useCalendar();
   const sessionCost = useCostTracker();
   const [obsidianNotes, setObsidianNotes] = useState<ObsidianNote[]>([]);
+  const [memoryContext, setMemoryContext] = useState('');
 
   useEffect(() => {
     fetchObsidian().then(setObsidianNotes);
     // Refresh vault notes every 5 minutes
     const interval = setInterval(() => fetchObsidian().then(setObsidianNotes), 300_000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Load persistent memory context from Obsidian once on mount
+  useEffect(() => {
+    fetch('/api/session-context')
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { memoryContext?: string } | null) => {
+        if (data?.memoryContext) setMemoryContext(data.memoryContext);
+      })
+      .catch(() => { /* Obsidian offline — degrade gracefully */ });
   }, []);
   const [newIssueIds, setNewIssueIds] = useState<Set<string>>(new Set());
   const prevIssueIdsRef = useRef<Set<string>>(new Set());
@@ -329,6 +340,45 @@ export default function App() {
     setOrbState('thinking');
     stopSpeaking();
 
+    // Intercept "save session" — write conversation to Obsidian instead of sending to Claude
+    if (userText.trim().toLowerCase() === 'save session') {
+      try {
+        if (isDemoMode) {
+          const msg = 'Demo mode — session not saved, sir.';
+          addEntry('jarvis', msg);
+          setOrbState('speaking');
+          await speak(msg);
+        } else {
+          const saveRes = await fetch('/api/save-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: convHistoryRef.current.slice(-20) }),
+          });
+          if (saveRes.ok) {
+            const data = await saveRes.json() as { date?: string; time?: string };
+            const msg = `Session memory saved to Obsidian for ${data.date ?? 'today'} at ${data.time ?? 'now'}, sir.`;
+            addEntry('jarvis', msg);
+            setOrbState('speaking');
+            await speak(msg);
+          } else {
+            const msg = 'Unable to save session — check Obsidian connectivity, sir.';
+            addEntry('jarvis', msg);
+            setOrbState('speaking');
+            await speak(msg);
+          }
+        }
+      } catch {
+        const msg = 'Session save failed unexpectedly, sir.';
+        addEntry('jarvis', msg);
+        setOrbState('speaking');
+        await speak(msg);
+      } finally {
+        isProcessingRef.current = false;
+        setOrbState('idle');
+      }
+      return;
+    }
+
     const baseContext = dashboardData
       ? buildJarvisContext(dashboardData, COMPANY_ID, obsidianNotes)
       : 'Dashboard data unavailable — operating in limited mode.';
@@ -399,7 +449,8 @@ export default function App() {
             convHistoryRef.current.push({ role: 'assistant', content: fullText });
             addActionItems(fullText);
           }
-        }
+        },
+        memoryContext || undefined
       );
 
       if (!commandDetected) await ttsChain;
@@ -409,7 +460,7 @@ export default function App() {
       setConversation(prev => prev.filter(e => e.id !== jarvisEntryId));
 
       try {
-        const response = await askJarvis(userText, context, convHistoryRef.current.slice(-8));
+        const response = await askJarvis(userText, context, convHistoryRef.current.slice(-8), memoryContext || undefined);
         const command = parseCommandResponse(response);
         if (command) {
           setPendingCommand(command);
@@ -438,7 +489,7 @@ export default function App() {
       isProcessingRef.current = false;
       if (!commandDetected) setOrbState('idle');
     }
-  }, [dashboardData, obsidianNotes, handleExecute, handleCancel]);
+  }, [dashboardData, obsidianNotes, memoryContext, handleExecute, handleCancel]);
 
   const { isListening, isSupported, startListening } = useSpeechRecognition(processQuery);
 
@@ -548,6 +599,14 @@ export default function App() {
         </div>
         <div className="flex items-center gap-3 md:gap-4 text-xs">
           <TimePeriodIndicator />
+          <button
+            onClick={() => handleTextSubmit('save session')}
+            title="Save session memory to Obsidian"
+            className="hidden sm:flex items-center gap-1 px-2 py-1 tracking-widest transition-all hover:opacity-80"
+            style={{ border: '1px solid rgba(0,212,255,0.2)', color: '#2a6080', background: 'transparent', fontSize: '0.5rem', borderRadius: 2 }}
+          >
+            ⬡ SAVE SESSION
+          </button>
           <div className="flex items-center gap-1.5">
             <span className="status-dot active" />
             <span className="text-jarvis-dim hidden sm:inline">SYSTEMS ONLINE</span>
