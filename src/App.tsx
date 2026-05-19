@@ -234,9 +234,11 @@ export default function App() {
       : 'Dashboard data unavailable — operating in limited mode.';
 
     const emailContext = emails.length > 0
-      ? `\nGMAIL INBOX (${emails.length} messages, ${emails.filter(e => e.unread).length} unread):\n` +
-        emails.map(e => `- [${e.unread ? 'UNREAD' : 'READ'}${e.priority === 'high' ? ' HIGH-PRIORITY' : ''}] From: ${e.from} | Subject: ${e.subject} | ${e.time} | Preview: ${e.preview.slice(0, 120)}`).join('\n')
-      : '\nGMAIL INBOX: No messages loaded.';
+      ? `\nGMAIL — LAST 21 DAYS (${emails.length} messages, ${emails.filter((e: { unread: boolean }) => e.unread).length} unread):\n` +
+        emails.map((e: { unread: boolean; priority: string; inInbox?: boolean; from: string; subject: string; time: string; preview: string }) =>
+          `- [${e.unread ? 'UNREAD' : 'READ'}${e.priority === 'high' ? ' HIGH-PRI' : ''}${e.inInbox === false ? ' ARCHIVED' : ''}] From: ${e.from} | Subject: ${e.subject} | ${e.time} | ${e.preview.slice(0, 80)}`
+        ).join('\n')
+      : '\nGMAIL: No messages loaded.';
 
     const calendarContext = calendarEvents.length > 0
       ? `\nCALENDAR — TODAY (${calendarEvents.length} events, ${calendarEvents.filter(e => !e.past).length} upcoming):\n` +
