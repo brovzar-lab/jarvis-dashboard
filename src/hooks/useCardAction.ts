@@ -4,6 +4,8 @@ import { isDemoMode } from '../services/paperclip';
 export function useCardAction(issueId: string, companyId: string, onRefresh: () => void) {
   const [isPending, setIsPending] = useState(false);
   const [didSucceed, setDidSucceed] = useState(false);
+  const [didFail, setDidFail] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const execute = useCallback(async (
     action: 'patch_issue' | 'add_comment',
@@ -12,6 +14,8 @@ export function useCardAction(issueId: string, companyId: string, onRefresh: () 
     if (isPending) return;
     setIsPending(true);
     setDidSucceed(false);
+    setDidFail(false);
+    setErrorMsg(null);
     try {
       if (isDemoMode) {
         await new Promise(r => setTimeout(r, 400));
@@ -29,11 +33,21 @@ export function useCardAction(issueId: string, companyId: string, onRefresh: () 
         setDidSucceed(true);
         onRefresh();
         setTimeout(() => setDidSucceed(false), 1200);
+      } else {
+        let msg = `Action failed (${res.status})`;
+        try { const d = await res.json(); if (d?.error) msg = d.error; } catch { /* noop */ }
+        setDidFail(true);
+        setErrorMsg(msg);
+        setTimeout(() => { setDidFail(false); setErrorMsg(null); }, 3000);
       }
+    } catch (err) {
+      setDidFail(true);
+      setErrorMsg(String(err));
+      setTimeout(() => { setDidFail(false); setErrorMsg(null); }, 3000);
     } finally {
       setIsPending(false);
     }
   }, [issueId, companyId, onRefresh, isPending]);
 
-  return { execute, isPending, didSucceed };
+  return { execute, isPending, didSucceed, didFail, errorMsg };
 }

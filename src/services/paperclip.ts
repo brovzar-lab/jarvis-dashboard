@@ -178,9 +178,16 @@ export function buildJarvisContext(data: DashboardData, companyId?: string, obsi
     `- ${i.identifier}: "${i.title}" (${i.priority} priority)`
   ).join('\n');
 
-  const inboxSummary = data.myInbox.map(i =>
+  // Filter inbox for the brief: APPU issues are internal dev noise for Billy.
+  // Keep non-APPU items always; keep APPU only if critical or high priority.
+  const briefInbox = data.myInbox.filter(i => {
+    const isAppu = /^APPU-/i.test(i.identifier ?? '');
+    return !isAppu || i.priority === 'critical' || i.priority === 'high';
+  });
+  const hiddenInboxCount = data.myInbox.length - briefInbox.length;
+  const inboxSummary = briefInbox.map(i =>
     `- ${i.identifier}: "${i.title}" [${i.status}] (${i.priority} priority)`
-  ).join('\n');
+  ).join('\n') + (hiddenInboxCount > 0 ? `\n(${hiddenInboxCount} low-priority APPU issues hidden — ask to see all)` : '');
 
   const waitingSummary = data.waitingOnMeIssues.map(i =>
     `- ${i.identifier}: "${i.title}" [${i.status}] (${i.priority} priority)`

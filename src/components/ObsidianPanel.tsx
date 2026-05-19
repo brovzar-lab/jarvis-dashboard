@@ -2,13 +2,25 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { fetchObsidian, type ObsidianNote } from '../services/integrations';
 
-export function ObsidianPanel() {
+interface Props {
+  onAction?: (query: string) => void;
+}
+
+export function ObsidianPanel({ onAction }: Props) {
   const [notes, setNotes] = useState<ObsidianNote[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchObsidian().then(data => { setNotes(data); setLoading(false); });
   }, []);
+
+  const handleNoteClick = (note: ObsidianNote) => {
+    if (!onAction) return;
+    setActiveId(note.id);
+    setTimeout(() => setActiveId(null), 1500);
+    onAction(`Tell me about this note: "${note.title}" — summarize it and explain what it means for my current priorities.`);
+  };
 
   return (
     <div className="panel-border corner-decoration rounded p-4 h-full flex flex-col">
@@ -22,6 +34,11 @@ export function ObsidianPanel() {
         </span>
       </div>
       <div className="glow-line" style={{ background: 'linear-gradient(90deg, transparent, #a78bfa, transparent)' }} />
+      {onAction && !loading && notes.length > 0 && (
+        <div className="text-xs mt-1 mb-0" style={{ color: '#3a2a6a', fontSize: '0.55rem', letterSpacing: '0.05em' }}>
+          CLICK ANY NOTE TO ASK JARVIS
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto mt-2 space-y-1">
         {loading ? (
           <div className="flex items-center justify-center h-full">
@@ -36,10 +53,22 @@ export function ObsidianPanel() {
           <motion.div
             key={note.id}
             initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
+            animate={{
+              opacity: 1,
+              x: 0,
+              boxShadow: activeId === note.id ? '0 0 10px rgba(167,139,250,0.6)' : '0 0 0 transparent',
+            }}
             transition={{ delay: i * 0.05 }}
+            onClick={() => handleNoteClick(note)}
             className="py-2 border-b"
-            style={{ borderColor: '#0a1a3a' }}
+            style={{
+              borderColor: '#0a1a3a',
+              cursor: onAction ? 'pointer' : 'default',
+              borderRadius: 3,
+              padding: '6px 4px',
+              background: activeId === note.id ? 'rgba(167,139,250,0.07)' : 'transparent',
+              transition: 'background 0.2s',
+            }}
           >
             <div className="flex items-center gap-1.5 mb-0.5">
               <span style={{ color: '#a78bfa', fontSize: '0.6rem', flexShrink: 0 }}>◆</span>

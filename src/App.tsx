@@ -34,7 +34,7 @@ import type { ObsidianNote } from './services/integrations';
 import { speak, stopSpeaking, unlockAudio } from './services/tts';
 import { parseCommandResponse, executeCommand } from './services/command-executor';
 import type { JarvisCommand } from './services/command-executor';
-import type { OrbState, ConversationEntry } from './types';
+import type { OrbState, ConversationEntry, Issue } from './types';
 
 const COMPANY_ID = getCompanyId();
 
@@ -64,6 +64,8 @@ export default function App() {
   const [visualAlerts, setVisualAlerts] = useState<string[]>([]);
   const [agentView, setAgentView] = useState<'grid' | 'behaviors'>('behaviors');
   const [leftTab, setLeftTab] = useState<'brief' | 'agents' | 'email' | 'calendar' | 'brain'>('brief');
+  const [playingPitchId, setPlayingPitchId] = useState<string | null>(null);
+  const hearPitchSessionRef = useRef(0);
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
   const isProcessingRef = useRef(false);
@@ -188,6 +190,20 @@ export default function App() {
   }, []);
 
   handleCancelRef.current = handleCancel;
+
+  const handleHearPitch = useCallback(async (issue: Issue) => {
+    const session = ++hearPitchSessionRef.current;
+    setPlayingPitchId(issue.id);
+    stopSpeaking();
+    const pitchText = `Pitch brief for ${issue.identifier}: ${issue.title}. Ask me for details on this pitch.`;
+    addEntry('jarvis', pitchText);
+    setOrbState('speaking');
+    await speak(pitchText);
+    if (hearPitchSessionRef.current === session) {
+      setOrbState('idle');
+      setPlayingPitchId(null);
+    }
+  }, []);
 
   const handleExecute = useCallback(async () => {
     const cmd = pendingCommandRef.current;
@@ -622,11 +638,11 @@ export default function App() {
                 />
               )
             ) : leftTab === 'email' ? (
-              <EmailPanel />
+              <EmailPanel onAction={handleTextSubmit} />
             ) : leftTab === 'calendar' ? (
-              <CalendarPanel />
+              <CalendarPanel onAction={handleTextSubmit} />
             ) : (
-              <ObsidianPanel />
+              <ObsidianPanel onAction={handleTextSubmit} />
             )}
           </div>
         </div>
@@ -658,14 +674,14 @@ export default function App() {
             {isLoading ? (
               <LoadingSkeleton label="LEMA PITCHES" />
             ) : (
-              <PitchesPanel issues={dashboardData?.lemaPitches ?? []} />
+              <PitchesPanel issues={dashboardData?.lemaPitches ?? []} onHearPitch={handleHearPitch} playingPitchId={playingPitchId} />
             )}
           </div>
           <div className="min-h-[90px]">
             {isLoading ? (
               <LoadingSkeleton label="TODAY'S AGENDA" />
             ) : (
-              <AgendaPanel issues={dashboardData?.myInbox ?? []} />
+              <AgendaPanel issues={dashboardData?.myInbox ?? []} onRefresh={refreshDashboard} />
             )}
           </div>
         </div>

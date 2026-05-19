@@ -30,7 +30,7 @@ function WaitingCard({ issue, onRefresh, isNew, index }: {
   issue: Issue; onRefresh: () => void; isNew: boolean; index: number;
 }) {
   const cid = issue.companyId ?? getCompanyId();
-  const { execute, isPending, didSucceed } = useCardAction(issue.id, cid, onRefresh);
+  const { execute, isPending, didSucceed, didFail, errorMsg } = useCardAction(issue.id, cid, onRefresh);
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentText, setCommentText] = useState('');
   const shouldPulse = didSucceed || isNew;
@@ -48,7 +48,11 @@ function WaitingCard({ issue, onRefresh, isNew, index }: {
       animate={{
         opacity: 1,
         y: 0,
-        boxShadow: shouldPulse ? '0 0 12px rgba(0,212,255,0.6)' : '0 0 0px rgba(0,212,255,0)',
+        boxShadow: didFail
+          ? '0 0 10px rgba(255,68,68,0.5)'
+          : shouldPulse
+          ? '0 0 12px rgba(0,212,255,0.6)'
+          : '0 0 0px rgba(0,212,255,0)',
       }}
       transition={{
         opacity: { delay: index * 0.08, duration: 0.3 },
@@ -56,7 +60,7 @@ function WaitingCard({ issue, onRefresh, isNew, index }: {
         boxShadow: { duration: 1, ease: 'easeOut' },
       }}
       className="rounded p-2"
-      style={{ background: 'rgba(255,136,0,0.04)', border: '1px solid rgba(255,136,0,0.15)' }}
+      style={{ background: 'rgba(255,136,0,0.04)', border: `1px solid ${didFail ? 'rgba(255,68,68,0.4)' : 'rgba(255,136,0,0.15)'}` }}
     >
       <div className="flex items-center justify-between gap-2 mb-1">
         <span className="text-xs font-mono" style={{ color: '#ff8800', opacity: 0.8 }}>
@@ -104,30 +108,44 @@ function WaitingCard({ issue, onRefresh, isNew, index }: {
       <div className="text-xs leading-tight" style={{ color: '#9f8f7f' }}>
         {issue.title}
       </div>
+      {didFail && errorMsg && (
+        <div className="mt-1 text-xs" style={{ color: '#ff4444', fontSize: '0.6rem' }}>
+          ⚠ {errorMsg}
+        </div>
+      )}
       {commentOpen && (
-        <div className="mt-2 flex gap-1">
-          <input
+        <div className="mt-2 flex flex-col gap-1">
+          <textarea
             autoFocus
-            type="text"
             value={commentText}
             onChange={e => setCommentText(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleComment(); if (e.key === 'Escape') setCommentOpen(false); }}
-            placeholder="Add comment..."
-            className="flex-1 text-xs font-mono px-2 py-1 rounded outline-none"
+            onKeyDown={e => { if (e.key === 'Escape') setCommentOpen(false); }}
+            placeholder="Add comment... (Shift+Enter for new line)"
+            rows={3}
+            className="w-full text-xs font-mono px-2 py-1.5 rounded outline-none resize-none"
             style={{
               background: 'rgba(0,212,255,0.05)',
               border: '1px solid rgba(0,212,255,0.2)',
               color: '#00d4ff',
             }}
           />
-          <button
-            onClick={handleComment}
-            disabled={isPending || !commentText.trim()}
-            className="font-mono tracking-widest px-2 py-1 rounded text-xs opacity-70 hover:opacity-100 transition-opacity disabled:opacity-30"
-            style={{ color: '#00d4ff', border: '1px solid rgba(0,212,255,0.3)', fontSize: '9px' }}
-          >
-            SEND
-          </button>
+          <div className="flex gap-1 justify-end">
+            <button
+              onClick={() => setCommentOpen(false)}
+              className="font-mono tracking-widest px-2 py-0.5 rounded text-xs opacity-50 hover:opacity-80 transition-opacity"
+              style={{ color: '#2a5f80', border: '1px solid rgba(42,95,128,0.3)', fontSize: '9px' }}
+            >
+              CANCEL
+            </button>
+            <button
+              onClick={handleComment}
+              disabled={isPending || !commentText.trim()}
+              className="font-mono tracking-widest px-2 py-0.5 rounded text-xs opacity-70 hover:opacity-100 transition-opacity disabled:opacity-30"
+              style={{ color: '#00d4ff', border: '1px solid rgba(0,212,255,0.3)', fontSize: '9px' }}
+            >
+              SEND
+            </button>
+          </div>
         </div>
       )}
     </motion.div>

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Issue } from '../types';
 import { useCardAction } from '../hooks/useCardAction';
@@ -29,8 +30,17 @@ function ReviewCard({ issue, onRefresh, isNew, index }: {
   issue: Issue; onRefresh: () => void; isNew: boolean; index: number;
 }) {
   const cid = issue.companyId ?? getCompanyId();
-  const { execute, isPending, didSucceed } = useCardAction(issue.id, cid, onRefresh);
+  const { execute, isPending, didSucceed, didFail, errorMsg } = useCardAction(issue.id, cid, onRefresh);
+  const [changesOpen, setChangesOpen] = useState(false);
+  const [changesText, setChangesText] = useState('');
   const shouldPulse = didSucceed || isNew;
+
+  const handleRequestChanges = async () => {
+    if (!changesText.trim()) return;
+    await execute('add_comment', { body: `REQUEST CHANGES: ${changesText.trim()}` });
+    setChangesText('');
+    setChangesOpen(false);
+  };
 
   return (
     <motion.div
@@ -38,7 +48,11 @@ function ReviewCard({ issue, onRefresh, isNew, index }: {
       animate={{
         opacity: 1,
         y: 0,
-        boxShadow: shouldPulse ? '0 0 12px rgba(0,212,255,0.6)' : '0 0 0px rgba(0,212,255,0)',
+        boxShadow: didFail
+          ? '0 0 10px rgba(255,68,68,0.5)'
+          : shouldPulse
+          ? '0 0 12px rgba(0,212,255,0.6)'
+          : '0 0 0px rgba(0,212,255,0)',
       }}
       transition={{
         opacity: { delay: index * 0.08, duration: 0.3 },
@@ -46,7 +60,7 @@ function ReviewCard({ issue, onRefresh, isNew, index }: {
         boxShadow: { duration: 1, ease: 'easeOut' },
       }}
       className="rounded p-2"
-      style={{ background: 'rgba(0,212,255,0.03)', border: '1px solid rgba(0,212,255,0.08)' }}
+      style={{ background: 'rgba(0,212,255,0.03)', border: `1px solid ${didFail ? 'rgba(255,68,68,0.4)' : 'rgba(0,212,255,0.08)'}` }}
     >
       <div className="flex items-center justify-between gap-2 mb-1">
         <span className="text-xs font-mono" style={{ color: '#00d4ff', opacity: 0.7 }}>
@@ -69,6 +83,14 @@ function ReviewCard({ issue, onRefresh, isNew, index }: {
           >
             REASSIGN
           </button>
+          <button
+            onClick={() => setChangesOpen(o => !o)}
+            disabled={isPending}
+            className="font-mono tracking-widest opacity-40 hover:opacity-100 transition-opacity px-1.5 py-0.5 rounded disabled:cursor-not-allowed"
+            style={{ color: '#ff4444', border: '1px solid rgba(255,68,68,0.3)', fontSize: '9px' }}
+          >
+            CHANGES
+          </button>
           <span
             className="tracking-wider px-1.5 py-0.5 rounded"
             style={{
@@ -86,6 +108,46 @@ function ReviewCard({ issue, onRefresh, isNew, index }: {
       <div className="text-xs leading-tight" style={{ color: '#5a9fbf' }}>
         {issue.title}
       </div>
+      {didFail && errorMsg && (
+        <div className="mt-1 text-xs" style={{ color: '#ff4444', fontSize: '0.6rem' }}>
+          ⚠ {errorMsg}
+        </div>
+      )}
+      {changesOpen && (
+        <div className="mt-2 flex flex-col gap-1">
+          <textarea
+            autoFocus
+            value={changesText}
+            onChange={e => setChangesText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') setChangesOpen(false); }}
+            placeholder="Describe the changes needed..."
+            rows={3}
+            className="w-full text-xs font-mono px-2 py-1.5 rounded outline-none resize-none"
+            style={{
+              background: 'rgba(255,68,68,0.05)',
+              border: '1px solid rgba(255,68,68,0.25)',
+              color: '#ff8888',
+            }}
+          />
+          <div className="flex gap-1 justify-end">
+            <button
+              onClick={() => setChangesOpen(false)}
+              className="font-mono tracking-widest px-2 py-0.5 rounded text-xs opacity-50 hover:opacity-80 transition-opacity"
+              style={{ color: '#2a5f80', border: '1px solid rgba(42,95,128,0.3)', fontSize: '9px' }}
+            >
+              CANCEL
+            </button>
+            <button
+              onClick={handleRequestChanges}
+              disabled={isPending || !changesText.trim()}
+              className="font-mono tracking-widest px-2 py-0.5 rounded text-xs opacity-70 hover:opacity-100 transition-opacity disabled:opacity-30"
+              style={{ color: '#ff4444', border: '1px solid rgba(255,68,68,0.4)', fontSize: '9px' }}
+            >
+              SEND
+            </button>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

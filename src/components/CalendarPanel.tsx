@@ -1,6 +1,11 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import type { CalendarEvent } from '../services/integrations';
 import { useCalendar } from '../hooks/useCalendar';
+
+interface Props {
+  onAction?: (query: string) => void;
+}
 
 function eventTypeStyle(type: CalendarEvent['type']): { color: string; bg: string; border: string } {
   if (type === 'meeting') return { color: '#7ecfff', bg: 'rgba(0,212,255,0.06)', border: 'rgba(0,212,255,0.15)' };
@@ -16,11 +21,19 @@ const TYPE_LABELS: Record<CalendarEvent['type'], string> = {
   personal: 'PERSONAL',
 };
 
-export function CalendarPanel() {
+export function CalendarPanel({ onAction }: Props) {
   const { data: events = [], isLoading: loading } = useCalendar();
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   const upcoming = events.filter(e => !e.past);
   const nextEvent = upcoming[0];
+
+  const handleEventClick = (event: CalendarEvent) => {
+    if (!onAction) return;
+    setActiveId(event.id);
+    setTimeout(() => setActiveId(null), 1500);
+    onAction(`Brief me on this event and what I should prepare: "${event.title}" at ${event.time}${event.duration ? ` (${event.duration})` : ''}${event.attendees ? ` with ${event.attendees} attendees` : ''}.`);
+  };
 
   return (
     <div className="panel-border corner-decoration rounded p-4 h-full flex flex-col">
@@ -35,7 +48,8 @@ export function CalendarPanel() {
       {nextEvent && !loading && (
         <div
           className="mt-2 mb-2 px-2 py-1.5 rounded"
-          style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.12)' }}
+          style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.12)', cursor: onAction ? 'pointer' : 'default' }}
+          onClick={() => handleEventClick(nextEvent)}
         >
           <div className="text-xs tracking-widest mb-0.5" style={{ color: '#2a5f80' }}>NEXT UP</div>
           <div className="text-xs font-medium truncate" style={{ color: '#7ecfff' }}>{nextEvent.title}</div>
@@ -43,6 +57,12 @@ export function CalendarPanel() {
             {nextEvent.time}{nextEvent.duration && ` · ${nextEvent.duration}`}
             {nextEvent.attendees ? ` · ${nextEvent.attendees} attendees` : ''}
           </div>
+        </div>
+      )}
+
+      {onAction && !loading && events.length > 0 && (
+        <div className="text-xs mb-1" style={{ color: '#1a3040', fontSize: '0.55rem', letterSpacing: '0.05em' }}>
+          CLICK EVENT TO BRIEF JARVIS
         </div>
       )}
 
@@ -57,14 +77,27 @@ export function CalendarPanel() {
           </div>
         ) : events.map((event, i) => {
           const style = eventTypeStyle(event.type);
+          const isActive = activeId === event.id;
           return (
             <motion.div
               key={event.id}
               initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
+              animate={{
+                opacity: 1,
+                x: 0,
+                boxShadow: isActive ? '0 0 8px rgba(0,212,255,0.5)' : '0 0 0 transparent',
+              }}
               transition={{ delay: i * 0.04 }}
-              className="flex items-start gap-2 py-1.5 border-b"
-              style={{ borderColor: '#0a2a4a', opacity: event.past ? 0.35 : 1 }}
+              onClick={() => handleEventClick(event)}
+              className="flex items-start gap-2 py-1.5 border-b rounded"
+              style={{
+                borderColor: '#0a2a4a',
+                opacity: event.past ? 0.35 : 1,
+                cursor: onAction ? 'pointer' : 'default',
+                background: isActive ? 'rgba(0,212,255,0.05)' : 'transparent',
+                transition: 'background 0.2s',
+                padding: '6px 3px',
+              }}
             >
               <span
                 className="text-xs px-1 flex-shrink-0 mt-0.5"
