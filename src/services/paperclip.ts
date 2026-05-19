@@ -122,25 +122,40 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     updatedAt: item.updatedAt ?? new Date().toISOString(),
   }));
 
-  // Fetch LEMA pitches if LEMA is a known company
+  // Fetch LEMA pitches (projects) if LEMA is a known company.
+  // Pitches in LEMA are Paperclip projects, not issues.
+  // Active = queueStatus of awaiting_review (needs decision) or decided (greenlit).
   let lemaPitches: Issue[] = [];
   if (companyIds.includes(LEMA_COMPANY_ID)) {
     try {
-      const projectsRaw = await apiGet<unknown>(`/api/companies/${LEMA_COMPANY_ID}/projects`).catch(() => null);
-      let pitchProjectId: string | undefined;
-      if (projectsRaw && typeof projectsRaw === 'object') {
-        const projects = extractArray<{ id: string; name: string }>(projectsRaw, 'projects', 'data', 'items');
-        const pitchProject = projects.find(p => /pitch/i.test(p.name));
-        pitchProjectId = pitchProject?.id;
+      interface LemaProject {
+        id: string;
+        name: string;
+        status: string;
+        queueStatus?: string | null;
+        devStage?: string;
+        description?: string | null;
       }
-      const pitchQuery = pitchProjectId
-        ? `/api/companies/${LEMA_COMPANY_ID}/issues?projectId=${pitchProjectId}&status=todo,in_progress,in_review,blocked&limit=20`
-        : `/api/companies/${LEMA_COMPANY_ID}/issues?q=pitch&status=todo,in_progress,in_review,blocked&limit=20`;
-      const pitchesRaw = await apiGet<unknown>(pitchQuery).catch(() => []);
-      lemaPitches = extractArray<Issue>(pitchesRaw, 'issues', 'data').map(i => ({
-        ...i,
-        companyId: LEMA_COMPANY_ID,
-      }));
+      const projectsRaw = await apiGet<unknown>(`/api/companies/${LEMA_COMPANY_ID}/projects?limit=80`).catch(() => null);
+      if (projectsRaw) {
+        const projects = extractArray<LemaProject>(projectsRaw, 'projects', 'data', 'items');
+        lemaPitches = projects
+          .filter(p =>
+            p.status !== 'cancelled' &&
+            p.queueStatus !== 'archived' &&
+            (p.queueStatus === 'awaiting_review' || p.queueStatus === 'decided')
+          )
+          .map(p => ({
+            id: p.id,
+            identifier: '',
+            title: p.name,
+            status: p.queueStatus === 'decided' ? 'in_progress' : 'in_review',
+            priority: 'medium',
+            updatedAt: new Date().toISOString(),
+            companyId: LEMA_COMPANY_ID,
+            description: p.description ?? undefined,
+          }));
+      }
     } catch {
       // silently degrade — pitches panel will show empty state
     }
@@ -193,9 +208,13 @@ export function buildJarvisContext(data: DashboardData, companyId?: string, obsi
     `- ${i.identifier}: "${i.title}" (${i.priority} priority)`
   ).join('\n');
 
-  const pitchesSummary = (data.lemaPitches ?? []).map(i =>
-    `- ${i.identifier}: "${i.title}" [${i.status}] (${i.priority} priority)`
-  ).join('\n');
+  const pitchesSummary = (data.lemaPitches ?? []).map(i => {
+    const synopsis = i.description
+      ? `\n  Pitch: ${i.description.replace(/\n+/g, ' ').slice(0, 350)}`
+      : '';
+    const statusLabel = i.status === 'in_progress' ? 'GREENLIT / IN DEVELOPMENT' : 'AWAITING REVIEW';
+    return `- "${i.title}" [${statusLabel}]${synopsis}`;
+  }).join('\n');
 
   // Agent ID map for command execution — includes companyId so Claude uses the right company
   const agentIdMap = data.agents.map(a =>

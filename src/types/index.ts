@@ -23,6 +23,7 @@ export interface Issue {
   updatedAt: string;
   projectId?: string;
   companyId?: string;
+  description?: string;
 }
 
 export interface DashboardData {

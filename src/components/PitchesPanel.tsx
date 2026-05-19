@@ -16,10 +16,12 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  in_progress: 'IN PROGRESS',
+  in_progress: 'GREENLIT',
   todo: 'TODO',
-  in_review: 'IN REVIEW',
+  in_review: 'AWAITING REVIEW',
   blocked: 'BLOCKED',
+  awaiting_review: 'AWAITING REVIEW',
+  decided: 'GREENLIT',
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -61,10 +63,12 @@ export function PitchesPanel({ issues, onHearPitch, playingPitchId }: Props) {
               }}
             >
               <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="text-xs font-mono" style={{ color: '#00d4ff', opacity: 0.7, fontSize: '10px' }}>
-                  {issue.identifier}
-                </span>
-                <div className="flex items-center gap-1.5">
+                {issue.identifier && (
+                  <span className="text-xs font-mono" style={{ color: '#00d4ff', opacity: 0.7, fontSize: '10px' }}>
+                    {issue.identifier}
+                  </span>
+                )}
+                <div className="flex items-center gap-1.5 ml-auto">
                   <span
                     className="tracking-wider px-1.5 py-0.5 rounded"
                     style={{
