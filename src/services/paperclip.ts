@@ -217,23 +217,65 @@ export function buildJarvisContext(data: DashboardData, companyId?: string, obsi
     .map(i => `${i.identifier} → ${i.id}`)
     .join('\n');
 
-  // Check for a "Lemon Context" doc in the vault — it contains comprehensive company/team info
+  // Hardcoded Lemon context — always injected so Jarvis has full company knowledge.
+  // If the Obsidian vault is connected and the "Lemon Context" note is available,
+  // that note is appended below as the authoritative/up-to-date version.
+  const LEMON_BASE_CONTEXT = `LEMON STUDIOS — EXECUTIVE CONTEXT
+
+Company: Lemon Studios (101 Producciones S.A.P.I. de C.V.) — premium Mexican film & TV production company, Mexico City. Timezone: America/Mexico_City.
+
+ABOUT BILLY: Non-engineer, builds with AI tools (vibe coding). Takes 54mg Concerta (ADHD). Prefers voice-first, low-friction, scannable briefings.
+
+PEOPLE & INITIALS — expand these when reading calendar events or notes aloud:
+- BR = Billy Rovzar, Founder & CEO (billy@lemonfilms.com) — "BR" in calendar titles means Billy's attendance required
+- FR = Fernando Rovzar, Cofounder / Creative Lead (fernando@lemonfilms.com)
+- ES = Erica Sanchez Su, Head of Production (erica@lemonfilms.com)
+- IT = Isaac Toussier, Head of Development (isaac@lemonfilms.com)
+- HC = Heazel Cid, Billy's Executive Assistant (heazel@lemonfilms.com)
+- PZ = Patrik Zielinski, CFO (patrik@lemonfilms.com)
+- ON = Oliver Nava, Development Executive (oliver@lemonfilms.com)
+- AL = Alejandro Lozano, Director / Cofounder
+
+KEY EXTERNAL CONTACTS:
+- Tyler Gould (tyler@magneticlabsmedia.com) — Magnetic Labs CIO (bridge loan)
+- Mauricio Llanes / Lara Helguera — LLH Law (contracts)
+- Crisanto Sanchez (creel.mx) — lead attorney, bridge loan term sheet
+- Mauricio Martinez Vallejo (GBM) — Lemon Trust I capital markets
+- Francisco Ferrandis (es.andersen.com) — Spain expansion legal
+
+ACTIVE PRODUCTIONS:
+- Los Corruptores (Netflix) — post-production (editing, VFX, ADR, PIX deliveries ep.106-108)
+- Las Azules S2 (Apple TV+) — final post-production; Season 1 won International Emmy
+- In development: Papa en la Luna, Oro Verde (Sony/Netflix), COLMENA, Matadero V4 (Spain/Pais Vasco), El Godin de los Cielos, LUCHA
+
+ACTIVE BUSINESS THREADS:
+- Magnetic Labs bridge loan — Aperture structure, secured against Las Azules Apple cashflows; watch: term sheet execution, DocuSign, BBVA co-signatory docs
+- Lemon Trust I — $300M MXN film fund, targeting Cinepolis LP; watch: NDA signatures, LP commitment letters
+- Oxido Jalisco JV — 25% stake, $7.5M MXN; watch: equity structure, COECYJAL Anexo H, vesting triggers
+- Spain Expansion — Lemon Studios España; SETT application, NIF, Canarias/Pais Vasco incentives; watch: SETT meeting, NIF timeline
+
+NOISE FILTERS — do NOT brief Billy on these unless specifically relevant:
+Temu/retail promo emails, LinkedIn notifications, newsletter digests, Google security alerts (unless unknown device), Eight Sleep/consumer product emails, automated billing/receipts, Steam/gaming, Incogni updates, Interactive Brokers marketing, Eton School parent comms (mention only if deadline within 48h)
+
+BRIEFING FORMATTING — FOLLOW STRICTLY:
+- Lead with the single most important item as a "When/Then" commitment (3 seconds to read)
+- Use NOW / NEXT / ORBIT structure (three buckets, not a flat list)
+- Each item: who it's from + what it's about + what Billy should DO
+- Include time estimates for NOW items; flag if total NOW time exceeds calendar availability
+- Include one SPARK item in NOW (something Billy wants to do — creative work, fun call, build session — dopamine fuel)
+- Skip anything that does not require Billy's personal attention; delegate-level items get a single grouped line at the bottom
+- Never use em dashes; use commas or periods
+- Spanish/English mix is normal; do not translate unless it aids clarity
+`;
+
   const lemonContextNote = obsidianNotes?.find(n =>
     n.title.toLowerCase().replace(/[-_ ]/g, '').includes('lemoncontext') ||
     n.title.toLowerCase().includes('lemon context')
   );
+  // If Obsidian has the latest Lemon Context doc, append it (takes precedence for updated facts)
   const lemonContextSection = lemonContextNote
-    ? `LEMON CONTEXT DOC ("${lemonContextNote.title}"):
-${lemonContextNote.preview}
-`
-    : `LEMON FILMS TEAM — ABBREVIATIONS USED IN CALENDAR EVENTS AND NOTES:
-- BR = Billy Rovzar (that's YOU — founder & CEO of Lemon Films)
-  "BR" in calendar event titles means your attendance is required
-- IT = Isaac Toussier
-- ES = Erica Sanchez
-When reading calendar events aloud, always expand initials to full names.
-(Connect Obsidian vault to load the full "Lemon Context" document automatically.)
-`;
+    ? `${LEMON_BASE_CONTEXT}\nLEMON CONTEXT (live from Obsidian vault — most recent):\n${lemonContextNote.preview}\n`
+    : LEMON_BASE_CONTEXT;
 
   const vaultSection = obsidianNotes && obsidianNotes.length > 0
     ? `OBSIDIAN VAULT NOTES (${obsidianNotes.length} notes — use these to answer questions about Billy's strategy, meetings, research, and notes):
