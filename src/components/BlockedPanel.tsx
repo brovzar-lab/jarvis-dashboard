@@ -29,7 +29,7 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function BlockedCard({ issue, onRefresh, isNew, index }: {
+export function BlockedCard({ issue, onRefresh, isNew, index }: {
   issue: Issue; onRefresh: () => void; isNew: boolean; index: number;
 }) {
   const cid = issue.companyId ?? getCompanyId();

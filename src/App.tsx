@@ -6,9 +6,7 @@ import { AgentBehaviorsPanel } from './components/AgentBehaviorsPanel';
 import { EmailPanel } from './components/EmailPanel';
 import { CalendarPanel } from './components/CalendarPanel';
 import { ObsidianPanel } from './components/ObsidianPanel';
-import { ReviewPanel } from './components/ReviewPanel';
-import { BlockedPanel } from './components/BlockedPanel';
-import { WaitingOnMePanel } from './components/WaitingOnMePanel';
+import { RightIssuesTabs } from './components/RightIssuesTabs';
 import { AgendaPanel } from './components/AgendaPanel';
 import { PitchesPanel } from './components/PitchesPanel';
 import { ConversationHistory } from './components/ConversationHistory';
@@ -25,6 +23,7 @@ import { useEmail } from './hooks/useEmail';
 import { useCalendar } from './hooks/useCalendar';
 import { useCostTracker } from './hooks/useCostTracker';
 import { useProactiveBriefing } from './hooks/useProactiveBriefing';
+import { useCardAction } from './hooks/useCardAction';
 import { askJarvis } from './services/jarvis-ai';
 import { askJarvisStreaming } from './services/jarvis-stream';
 import { addClaudeUsage } from './services/cost-tracker';
@@ -32,7 +31,7 @@ import { buildJarvisContext, isDemoMode, getCompanyId } from './services/papercl
 import { fetchObsidian, searchEmails, searchObsidian } from './services/integrations';
 import type { ObsidianNote } from './services/integrations';
 import { speak, stopSpeaking, unlockAudio } from './services/tts';
-import { tryStartMorningTheme, stopMorningTheme, isMorningThemePlaying } from './services/morning-theme';
+import { tryStartMorningTheme, stopMorningTheme, isMorningThemePlaying, duckForTts, unduckFromTts, duckForMic, unduckFromMic } from './services/morning-theme';
 import { parseCommandResponse, executeCommand } from './services/command-executor';
 import type { JarvisCommand } from './services/command-executor';
 import type { OrbState, ConversationEntry, Issue, ActionItem, ContextCard, ContextCardKind } from './types';
@@ -583,6 +582,24 @@ export default function App() {
 
   const { isListening, isSupported, startListening } = useSpeechRecognition(processQuery);
 
+  // Duck music when JARVIS TTS is speaking
+  useEffect(() => {
+    if (orbState === 'speaking') {
+      duckForTts();
+    } else {
+      unduckFromTts();
+    }
+  }, [orbState]);
+
+  // Duck music hard when mic is actively listening (prevents speech recognition picking up music)
+  useEffect(() => {
+    if (isListening) {
+      duckForMic();
+    } else {
+      unduckFromMic();
+    }
+  }, [isListening]);
+
   const { isListening: wakeListening } = useWakeWord(
     () => {
       unlockAudio();
@@ -763,9 +780,9 @@ export default function App() {
               </motion.div>
             )}
 
-            {/* Orb — centered, takes up flex space */}
-            <div className="flex-1 flex items-center justify-center relative">
-              <VoiceOrb state={currentOrbState} onClick={handleOrbClick} orbSize={260} />
+            {/* Orb — centered, constrained to ~70% of its previous height */}
+            <div className="flex-1 min-h-0 flex items-center justify-center relative" style={{ maxHeight: '38vh' }}>
+              <VoiceOrb state={currentOrbState} onClick={handleOrbClick} orbSize={200} />
             </div>
 
             {/* Below orb: label + large clock + state + stats */}
@@ -858,6 +875,11 @@ export default function App() {
                 lastUpdated={lastUpdated}
                 onAction={handleTextSubmit}
                 contextCard={contextCard}
+                surfacedIssues={[
+                  ...(dashboardData?.waitingOnMeIssues ?? []).slice(0, 4),
+                  ...(dashboardData?.inReviewIssues ?? []).slice(0, 3),
+                ].slice(0, 7)}
+                onRefresh={refreshDashboard}
               />
             ) : leftTab === 'agents' ? (
               isLoading ? (
@@ -886,32 +908,24 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right: Review + Blocked + Waiting + Agenda — visual col 3 on desktop */}
+        {/* Right: Tabbed issues + Pitches + Agenda — visual col 3 on desktop */}
         <div className="md:flex-[25] min-h-0 flex flex-col gap-3 desktop-side-panel order-3">
-          <div className="flex-1 min-h-[100px]">
+          <div className="flex-[3] min-h-[200px]">
             {isLoading ? (
               <LoadingSkeleton label="PENDING REVIEW" />
             ) : (
-              <ReviewPanel issues={dashboardData?.inReviewIssues ?? []} onRefresh={refreshDashboard} newIssueIds={newIssueIds} />
+              <RightIssuesTabs
+                reviewIssues={dashboardData?.inReviewIssues ?? []}
+                blockedIssues={dashboardData?.blockedIssues ?? []}
+                waitingIssues={dashboardData?.waitingOnMeIssues ?? []}
+                onRefresh={refreshDashboard}
+                newIssueIds={newIssueIds}
+              />
             )}
           </div>
-          <div className="flex-1 min-h-[90px]">
+          <div className="flex-1 min-h-[160px]">
             {isLoading ? (
-              <LoadingSkeleton label="BLOCKED" />
-            ) : (
-              <BlockedPanel issues={dashboardData?.blockedIssues ?? []} onRefresh={refreshDashboard} newIssueIds={newIssueIds} />
-            )}
-          </div>
-          <div className="flex-1 min-h-[90px]">
-            {isLoading ? (
-              <LoadingSkeleton label="YOUR CALL" />
-            ) : (
-              <WaitingOnMePanel issues={dashboardData?.waitingOnMeIssues ?? []} onRefresh={refreshDashboard} newIssueIds={newIssueIds} />
-            )}
-          </div>
-          <div className="flex-1 min-h-[90px]">
-            {isLoading ? (
-              <LoadingSkeleton label="LEMA PITCHES" />
+              <LoadingSkeleton label="LEMON VIRTUAL PITCHES" />
             ) : (
               <PitchesPanel issues={dashboardData?.lemaPitches ?? []} onHearPitch={handleHearPitch} playingPitchId={playingPitchId} />
             )}
@@ -1091,17 +1105,98 @@ function ContextCardDisplay({ card }: { card: ContextCard }) {
   );
 }
 
+const PRIORITY_COLORS: Record<string, string> = {
+  critical: '#ff4444',
+  high: '#ff8800',
+  medium: '#00d4ff',
+  low: '#2a5f80',
+};
+
+function ActionQueueItem({ issue, onAction, onDismiss }: {
+  issue: Issue;
+  onAction: (text: string) => void;
+  onDismiss: (id: string) => void;
+}) {
+  const cid = issue.companyId ?? getCompanyId();
+  const { execute, isPending } = useCardAction(issue.id, cid, () => {});
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -6 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="rounded p-2"
+      style={{ background: 'rgba(0,212,255,0.03)', border: '1px solid rgba(0,212,255,0.1)' }}
+    >
+      <div className="flex items-center justify-between gap-1 mb-1.5">
+        <span className="font-mono" style={{ color: '#00d4ff', opacity: 0.75, fontSize: '0.62rem' }}>
+          {issue.identifier}
+        </span>
+        <span
+          className="tracking-wider px-1 rounded"
+          style={{
+            color: PRIORITY_COLORS[issue.priority] ?? '#2a5f80',
+            background: `${PRIORITY_COLORS[issue.priority] ?? '#2a5f80'}18`,
+            border: `1px solid ${PRIORITY_COLORS[issue.priority] ?? '#2a5f80'}44`,
+            fontSize: '8px',
+          }}
+        >
+          {issue.priority.toUpperCase()}
+        </span>
+      </div>
+      <div className="leading-snug mb-2" style={{ color: '#7ab8d4', fontSize: '0.75rem', lineHeight: 1.45 }}>
+        {issue.title}
+      </div>
+      <div className="flex gap-1 flex-wrap">
+        <button
+          onClick={() => onAction(`Tell me about ${issue.identifier}: ${issue.title}`)}
+          className="font-mono tracking-widest px-1.5 py-0.5 rounded transition-opacity hover:opacity-100 opacity-70"
+          style={{ color: '#00d4ff', border: '1px solid rgba(0,212,255,0.3)', fontSize: '8px' }}
+        >
+          OPEN
+        </button>
+        <button
+          onClick={() => execute('patch_issue', { status: 'done' })}
+          disabled={isPending}
+          className="font-mono tracking-widest px-1.5 py-0.5 rounded transition-opacity hover:opacity-100 opacity-70 disabled:opacity-30"
+          style={{ color: '#00ff88', border: '1px solid rgba(0,255,136,0.3)', fontSize: '8px' }}
+        >
+          APPROVE
+        </button>
+        <button
+          onClick={() => execute('patch_issue', { assigneeAgentId: null })}
+          disabled={isPending}
+          className="font-mono tracking-widest px-1.5 py-0.5 rounded transition-opacity hover:opacity-100 opacity-70 disabled:opacity-30"
+          style={{ color: '#ff8800', border: '1px solid rgba(255,136,0,0.3)', fontSize: '8px' }}
+        >
+          DELEGATE
+        </button>
+        <button
+          onClick={() => onDismiss(issue.id)}
+          className="font-mono tracking-widest px-1.5 py-0.5 rounded transition-opacity hover:opacity-100 opacity-50"
+          style={{ color: '#2a5f80', border: '1px solid rgba(42,95,128,0.3)', fontSize: '8px' }}
+        >
+          ✕
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
 interface BriefingPanelProps {
   actionItems: ActionItem[];
   onDismissItem: (id: string) => void;
   lastUpdated: Date;
   onAction: (text: string) => void;
   contextCard: ContextCard | null;
+  surfacedIssues?: Issue[];
+  onRefresh?: () => void;
 }
 
-function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard }: BriefingPanelProps) {
+function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard, surfacedIssues = [], onRefresh }: BriefingPanelProps) {
   const hour = new Date().getHours();
   const periodLabel = hour < 12 ? 'MORNING CHECK-IN' : hour < 17 ? 'MID-DAY CHECK-IN' : 'END-OF-DAY BRIEF';
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const visibleIssues = surfacedIssues.filter(i => !dismissedIds.has(i.id));
+
   const CHIPS = [
     "What's blocking us?",
     "Today's reviews",
@@ -1138,8 +1233,9 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
         </AnimatePresence>
       </div>
 
-      {/* Action items feed */}
-      <div className="flex-1 overflow-y-auto min-h-0 py-2">
+      {/* Scrollable feed: JARVIS action items + ACTION QUEUE */}
+      <div className="flex-1 overflow-y-auto min-h-0 py-2 space-y-3">
+        {/* JARVIS-extracted action items */}
         {actionItems.length > 0 ? (
           <div className="space-y-1.5">
             {actionItems.map((item, i) => (
@@ -1177,7 +1273,7 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
             ))}
           </div>
         ) : (
-          <div className="flex flex-col justify-center h-full gap-3 py-6">
+          <div className="flex flex-col gap-2 py-3">
             <motion.div
               animate={{ opacity: [0.3, 0.8, 0.3] }}
               transition={{ duration: 2.5, repeat: Infinity }}
@@ -1186,8 +1282,40 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
             >
               AWAITING BRIEFING
             </motion.div>
-            <div className="leading-relaxed" style={{ color: '#1a3040', fontSize: '0.8rem', lineHeight: '1.7' }}>
-              Click the orb or type a question. Action items Jarvis mentions will appear here.
+            <div className="leading-relaxed" style={{ color: '#1a3040', fontSize: '0.75rem', lineHeight: '1.7' }}>
+              Click the orb or type a question.
+            </div>
+          </div>
+        )}
+
+        {/* ACTION QUEUE — live surfaced Paperclip issues */}
+        {visibleIssues.length > 0 && (
+          <div>
+            <div
+              className="tracking-widest mb-2 flex items-center gap-2"
+              style={{ color: '#1a4060', fontSize: '0.48rem', borderTop: '1px solid rgba(0,212,255,0.06)', paddingTop: 8 }}
+            >
+              <span style={{ color: '#00d4ff', opacity: 0.5 }}>◆</span>
+              JARVIS · SURFACED
+              {onRefresh && (
+                <button
+                  onClick={onRefresh}
+                  className="ml-auto opacity-40 hover:opacity-80 transition-opacity"
+                  style={{ color: '#00d4ff', fontSize: '0.5rem' }}
+                >
+                  ↻
+                </button>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              {visibleIssues.map(issue => (
+                <ActionQueueItem
+                  key={issue.id}
+                  issue={issue}
+                  onAction={onAction}
+                  onDismiss={id => setDismissedIds(prev => new Set([...prev, id]))}
+                />
+              ))}
             </div>
           </div>
         )}
