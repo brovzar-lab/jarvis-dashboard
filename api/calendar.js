@@ -1,7 +1,9 @@
-// Google Calendar API proxy. Set GCAL_ACCESS_TOKEN (OAuth2 bearer) to enable live calendar.
-// Without it returns 204 so the client falls back to demo data.
+// Google Calendar API proxy. Uses refresh-token flow via GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN.
+// Returns 204 when credentials are missing so the client falls back to demo data.
+import { getGoogleAccessToken } from './_lib/google-token.js';
+
 export default async function handler(req, res) {
-  const token = process.env.GCAL_ACCESS_TOKEN;
+  const token = await getGoogleAccessToken();
   if (!token) return res.status(204).end();
 
   try {
