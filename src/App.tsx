@@ -279,7 +279,9 @@ export default function App() {
     const session = ++hearPitchSessionRef.current;
     setPlayingPitchId(issue.id);
     stopSpeaking();
-    const pitchText = `Pitch brief for ${issue.identifier}: ${issue.title}. Ask me for details on this pitch.`;
+    const pitchText = issue.identifier
+      ? `Pitch brief for ${issue.identifier}: ${issue.title}. Ask me for details on this pitch.`
+      : `Pitch brief for "${issue.title}". Ask me for details on this pitch.`;
     addEntry('jarvis', pitchText);
     setOrbState('speaking');
     await speak(pitchText);
