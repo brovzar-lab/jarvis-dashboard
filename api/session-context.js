@@ -16,7 +16,7 @@ const LEMON_CONTEXT_PATH = ensureMd(process.env.OBSIDIAN_LEMON_CONTEXT_PATH || '
 
 const PEOPLE_BOOTSTRAP = `# Jarvis People
 
-- BR: Billy Rozier (CEO, Lemaa)
+- BR: Billy Rovzar (CEO, Lemaa)
 - IT: [expand from Lemon Context]
 - ES: [expand from Lemon Context]
 `;
