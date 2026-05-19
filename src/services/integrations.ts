@@ -45,11 +45,9 @@ function buildDemoEvents(): CalendarEvent[] {
   const now = new Date();
   const h = now.getHours();
   return [
-    { id: 'c1', title: 'Investor call — Accel Partners', time: getHourLabel(10), duration: '45m', type: 'meeting', attendees: 3, past: h > 10 },
-    { id: 'c2', title: 'Team standup', time: getHourLabel(12), duration: '15m', type: 'meeting', attendees: 8, past: h > 12 },
-    { id: 'c3', title: 'Deep work block — architecture review', time: getHourLabel(14), duration: '2h', type: 'focus', past: h > 16 },
-    { id: 'c4', title: 'Series A due diligence deadline', time: '5:00 PM', duration: '', type: 'deadline', past: h > 17 },
-    { id: 'c5', title: 'Pitch rehearsal — Sequoia deck', time: getHourLabel(16), duration: '1h', type: 'meeting', attendees: 2, past: h > 17 },
+    { id: 'c1', title: 'BR — Investor call Accel Partners', time: getHourLabel(10), duration: '45m', type: 'meeting', attendees: 3, past: h > 10 },
+    { id: 'c2', title: 'BR — Series A review', time: getHourLabel(14), duration: '1h', type: 'meeting', attendees: 5, past: h > 15 },
+    { id: 'c3', title: 'BR — Pitch rehearsal Sequoia deck', time: getHourLabel(16), duration: '1h', type: 'meeting', attendees: 2, past: h > 17 },
   ];
 }
 

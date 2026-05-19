@@ -75,6 +75,13 @@ export function CalendarPanel({ onAction }: Props) {
               transition={{ duration: 1.5, repeat: Infinity }}
             >SYNCING...</motion.span>
           </div>
+        ) : events.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full gap-2 py-6">
+            <div className="text-xs text-jarvis-dim text-center tracking-widest">NO BR EVENTS TODAY</div>
+            <div className="text-xs text-center" style={{ color: '#1a3040', fontSize: '0.6rem', maxWidth: 180, lineHeight: 1.6 }}>
+              Showing Lemon calendar events marked with "BR" (Billy Required)
+            </div>
+          </div>
         ) : events.map((event, i) => {
           const style = eventTypeStyle(event.type);
           const isActive = activeId === event.id;
