@@ -84,3 +84,21 @@ export async function fetchObsidian(): Promise<ObsidianNote[]> {
   await new Promise(r => setTimeout(r, 150));
   return DEMO_NOTES;
 }
+
+export async function searchEmails(query: string, days = 180): Promise<Email[]> {
+  if (!query.trim()) return [];
+  try {
+    const res = await fetch(`/api/email/search?q=${encodeURIComponent(query)}&days=${days}`);
+    if (res.ok && res.status !== 204) return res.json();
+  } catch { /* fallthrough */ }
+  return [];
+}
+
+export async function searchObsidian(query: string): Promise<ObsidianNote[]> {
+  if (!query.trim()) return [];
+  try {
+    const res = await fetch(`/api/obsidian?q=${encodeURIComponent(query)}`);
+    if (res.ok && res.status !== 204) return res.json();
+  } catch { /* fallthrough */ }
+  return [];
+}

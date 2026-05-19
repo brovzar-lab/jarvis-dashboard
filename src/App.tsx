@@ -29,7 +29,7 @@ import { askJarvis } from './services/jarvis-ai';
 import { askJarvisStreaming } from './services/jarvis-stream';
 import { addClaudeUsage } from './services/cost-tracker';
 import { buildJarvisContext, isDemoMode, getCompanyId } from './services/paperclip';
-import { fetchObsidian } from './services/integrations';
+import { fetchObsidian, searchEmails, searchObsidian } from './services/integrations';
 import type { ObsidianNote } from './services/integrations';
 import { speak, stopSpeaking, unlockAudio } from './services/tts';
 import { parseCommandResponse, executeCommand } from './services/command-executor';
@@ -395,7 +395,27 @@ export default function App() {
         calendarEvents.map(e => `- [${e.past ? 'PAST' : 'UPCOMING'}] ${e.title} at ${e.time}${e.duration ? ` (${e.duration})` : ''}${e.attendees ? ` — ${e.attendees} attendees` : ''}`).join('\n')
       : '\nCALENDAR: No events today.';
 
-    const context = baseContext + emailContext + calendarContext;
+    // Per-query: search 6 months of email + Obsidian in parallel, auto-triggered on every query
+    const [relevantEmails, relevantNotes] = await Promise.all([
+      searchEmails(userText),
+      searchObsidian(userText),
+    ]);
+
+    const relevantEmailContext = relevantEmails.length > 0
+      ? `\nRELEVANT EMAIL HISTORY — last 6 months matching "${userText}" (${relevantEmails.length} results):\n` +
+        relevantEmails.map(e =>
+          `- [${e.unread ? 'UNREAD' : 'READ'}${e.priority === 'high' ? ' HIGH-PRI' : ''}] From: ${e.from} | Subject: ${e.subject} | ${e.time} | ${e.preview.slice(0, 120)}`
+        ).join('\n')
+      : '\nRELEVANT EMAIL HISTORY: No matching emails in the last 6 months.';
+
+    const relevantObsidianContext = relevantNotes.length > 0
+      ? `\nRELEVANT OBSIDIAN NOTES matching "${userText}" (${relevantNotes.length} results):\n` +
+        relevantNotes.map(n =>
+          `- "${n.title}" [${n.path}]${n.tags.length ? ` #${n.tags.join(' #')}` : ''}\n  ${n.preview}`
+        ).join('\n')
+      : '';
+
+    const context = baseContext + emailContext + calendarContext + relevantEmailContext + relevantObsidianContext;
 
     const jarvisEntryId = String(++entryCounter);
     let ttsChain = Promise.resolve();
