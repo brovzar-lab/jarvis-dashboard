@@ -32,6 +32,7 @@ import { buildJarvisContext, isDemoMode, getCompanyId } from './services/papercl
 import { fetchObsidian, searchEmails, searchObsidian } from './services/integrations';
 import type { ObsidianNote } from './services/integrations';
 import { speak, stopSpeaking, unlockAudio } from './services/tts';
+import { tryStartMorningTheme, stopMorningTheme, isMorningThemePlaying } from './services/morning-theme';
 import { parseCommandResponse, executeCommand } from './services/command-executor';
 import type { JarvisCommand } from './services/command-executor';
 import type { OrbState, ConversationEntry, Issue, ActionItem } from './types';
@@ -119,6 +120,7 @@ export default function App() {
   const [leftTab, setLeftTab] = useState<'brief' | 'agents' | 'email' | 'calendar' | 'brain'>('brief');
   const [playingPitchId, setPlayingPitchId] = useState<string | null>(null);
   const [actionItems, setActionItems] = useState<ActionItem[]>(loadActionItems);
+  const [musicPlaying, setMusicPlaying] = useState(false);
   const hearPitchSessionRef = useRef(0);
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
@@ -163,6 +165,18 @@ export default function App() {
     // Refresh vault notes every 5 minutes
     const interval = setInterval(() => fetchObsidian().then(setObsidianNotes), 300_000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Try immediate autoplay on mount (works if browser has granted autoplay permission)
+  // Falls back to first-interaction start via unlockAudio() → startMorningThemeOnUnlock()
+  useEffect(() => {
+    tryStartMorningTheme();
+    const poll = setInterval(() => {
+      const playing = isMorningThemePlaying();
+      setMusicPlaying(playing);
+      if (!playing) clearInterval(poll);
+    }, 1000);
+    return () => clearInterval(poll);
   }, []);
 
   // Load persistent memory context from Obsidian once on mount
@@ -621,6 +635,16 @@ export default function App() {
         </div>
         <div className="flex items-center gap-3 md:gap-4 text-xs">
           <TimePeriodIndicator />
+          {musicPlaying && (
+            <button
+              onClick={() => { stopMorningTheme(); setMusicPlaying(false); }}
+              title="Stop morning theme"
+              className="flex items-center gap-1 px-2 py-1 tracking-widest transition-all hover:opacity-80"
+              style={{ border: '1px solid rgba(0,212,255,0.35)', color: '#00d4ff', background: 'transparent', fontSize: '0.5rem', borderRadius: 2 }}
+            >
+              ♫ STOP MUSIC
+            </button>
+          )}
           <button
             onClick={() => handleTextSubmit('save session')}
             title="Save session memory to Obsidian"

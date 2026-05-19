@@ -1,4 +1,5 @@
 import { addTtsChars } from './cost-tracker';
+import { startMorningThemeOnUnlock } from './morning-theme';
 
 declare global {
   interface Window {
@@ -26,6 +27,7 @@ export function unlockAudio(): void {
   if (audioContext.state === 'suspended') {
     audioContext.resume().catch(() => {});
   }
+  startMorningThemeOnUnlock();
 }
 
 export function stopSpeaking(): void {
