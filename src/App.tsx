@@ -687,6 +687,11 @@ export default function App() {
         style={{ borderTop: '1px solid rgba(0,212,255,0.05)' }}
       >
         PAPERCLIP INTELLIGENCE PLATFORM · EXECUTIVE DASHBOARD v2.0
+        {import.meta.env.VITE_BUILD_TIME && (
+          <span className="ml-3 opacity-40">
+            · BUILD {new Date(import.meta.env.VITE_BUILD_TIME).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).toUpperCase()}
+          </span>
+        )}
       </div>
 
       <MicStatusIndicator
