@@ -453,72 +453,94 @@ export default function App() {
       {/* Main layout — scrollable on mobile, fixed-height 3-col on desktop */}
       <div className="flex-1 overflow-y-auto md:overflow-y-hidden grid grid-cols-1 md:grid-cols-12 gap-3 p-3 md:p-4" style={{ minHeight: 0 }}>
 
-        {/* Center: Orb + Conversation — first on mobile, cols 5-9 on desktop */}
-        <div className="col-span-1 md:col-span-5 md:col-start-5 order-first md:order-none flex flex-col gap-3">
-          {/* Orb */}
-          <div
-            className="panel-border corner-decoration rounded flex items-center justify-center relative overflow-hidden"
-            style={{ minHeight: 220 }}
-          >
-            {/* Ambient glow rings */}
-            <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 50%, rgba(0,212,255,0.04) 0%, transparent 70%)' }} />
-            <div className="relative flex items-center justify-center" style={{ width: '100%', maxWidth: 360, height: 220 }}>
-              {/* Left: live clock */}
-              <div className="absolute left-4 bottom-4 text-right hidden md:block">
-                <OrbClock />
-                <div className="text-xs tracking-widest mt-0.5" style={{ color: '#0d2030', fontSize: '0.55rem' }}>
-                  {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}
-                </div>
-              </div>
-              <VoiceOrb state={currentOrbState} onClick={handleOrbClick} />
-              {/* Right: state label */}
-              <div className="absolute right-4 bottom-4 text-right hidden md:block">
-                <div className="text-xs tracking-widest" style={{ color: '#0d2030', fontSize: '0.55rem' }}>STATE</div>
+        {/* Center: Orb (full-height, single panel) — first on mobile, cols 5-9 on desktop */}
+        <div className="col-span-1 md:col-span-5 md:col-start-5 order-first md:order-none flex flex-col">
+          <div className="flex-1 panel-border corner-decoration rounded flex flex-col relative overflow-hidden" style={{ minHeight: 360 }}>
+            {/* Grid + radial glow background */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                backgroundImage: 'radial-gradient(ellipse at 50% 42%, rgba(0,212,255,0.07) 0%, transparent 55%), linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px)',
+                backgroundSize: 'auto, 32px 32px, 32px 32px',
+              }}
+            />
+
+            {/* Wake indicator */}
+            {wakeListening && (
+              <motion.div
+                className="absolute top-3 right-3 flex items-center gap-1.5 z-10"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
                 <motion.div
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: '#00d4ff' }}
+                  animate={{ opacity: [1, 0.3, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                />
+                <span className="text-xs tracking-widest" style={{ color: '#2a5f80', fontSize: '0.6rem' }}>WAKE</span>
+              </motion.div>
+            )}
+
+            {/* Orb — centered, takes up flex space */}
+            <div className="flex-1 flex items-center justify-center relative py-6">
+              <VoiceOrb state={currentOrbState} onClick={handleOrbClick} orbSize={200} />
+            </div>
+
+            {/* Below orb: label + large clock + state + stats */}
+            <div className="flex flex-col items-center pb-4 px-4 flex-shrink-0">
+              <div className="text-xs tracking-widest mb-1" style={{ color: '#1a4060', fontSize: '0.6rem', letterSpacing: '0.3em' }}>
+                J · A · R · V · I · S
+              </div>
+              <LargeOrbClock />
+              <div className="flex items-center gap-2 mt-1 mb-4">
+                <motion.span
                   key={currentOrbState}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="text-xs tracking-widest font-medium"
-                  style={{ color: currentOrbState === 'idle' ? '#1a4060' : currentOrbState === 'listening' ? '#00d4ff' : currentOrbState === 'thinking' ? '#fbbf24' : '#34d399' }}
+                  className="text-xs tracking-widest"
+                  style={{
+                    color: currentOrbState === 'idle' ? '#2a5f80'
+                      : currentOrbState === 'listening' ? '#00d4ff'
+                      : currentOrbState === 'thinking' ? '#fbbf24'
+                      : '#34d399',
+                    fontSize: '0.6rem',
+                  }}
                 >
                   {currentOrbState.toUpperCase()}
-                </motion.div>
+                </motion.span>
+                <span style={{ color: '#1a3040', fontSize: '0.6rem' }}>·</span>
+                <span className="text-xs tracking-widest" style={{ color: '#1a4060', fontSize: '0.6rem' }}>
+                  {!isSupported ? 'USE TEXT INPUT' : 'CLICK JARVIS'}
+                </span>
               </div>
-              {wakeListening && (
-                <motion.div
-                  className="absolute top-2 right-2 flex items-center gap-1.5"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                >
-                  <motion.div
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ background: '#00d4ff' }}
-                    animate={{ opacity: [1, 0.3, 1] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  />
-                  <span className="text-xs tracking-widest" style={{ color: '#2a5f80' }}>WAKE</span>
-                </motion.div>
-              )}
-              {!isSupported && orbState === 'idle' && (
-                <div
-                  className="absolute bottom-0 text-center text-xs"
-                  style={{ color: '#2a5f80', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}
-                >
-                  VOICE UNAVAILABLE · USE TEXT INPUT
+
+              {/* Stats row */}
+              {dashboardData && (
+                <div className="flex gap-2 w-full max-w-xs">
+                  {[
+                    { label: 'AGENTS', value: `${dashboardData.agents.length}` },
+                    { label: 'REVIEW', value: `${dashboardData.inReviewIssues.length}` },
+                    { label: 'BLOCKED', value: `${dashboardData.blockedIssues.length}` },
+                    { label: 'QUEUE', value: `${dashboardData.waitingOnMeIssues.length}` },
+                  ].map(stat => (
+                    <div
+                      key={stat.label}
+                      className="flex-1 text-center py-1 px-1"
+                      style={{ border: '1px dashed rgba(0,212,255,0.15)', borderRadius: 2 }}
+                    >
+                      <div className="text-xs font-bold" style={{ color: '#00d4ff', fontSize: '0.75rem' }}>{stat.value}</div>
+                      <div className="text-xs tracking-widest" style={{ color: '#1a3040', fontSize: '0.45rem' }}>{stat.label}</div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Conversation */}
-          <div
-            className="flex-1 panel-border corner-decoration rounded flex flex-col desktop-convo-panel"
-            style={{ minHeight: 200 }}
-          >
-            <div className="flex-1 overflow-hidden p-0">
-              <ConversationHistory entries={conversation} />
+            {/* Text input embedded at bottom */}
+            <div className="flex-shrink-0" style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
+              <TextInput onSubmit={handleTextSubmit} disabled={isProcessingRef.current} />
             </div>
-            <TextInput onSubmit={handleTextSubmit} disabled={isProcessingRef.current} />
           </div>
         </div>
 
@@ -662,21 +684,25 @@ function LiveClock() {
   return <span>{time}</span>;
 }
 
-function OrbClock() {
-  const [time, setTime] = useState(() => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
+function LargeOrbClock() {
+  const [time, setTime] = useState(() => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2,'0')} : ${String(d.getMinutes()).padStart(2,'0')} : ${String(d.getSeconds()).padStart(2,'0')}`;
+  });
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
+      const d = new Date();
+      setTime(`${String(d.getHours()).padStart(2,'0')} : ${String(d.getMinutes()).padStart(2,'0')} : ${String(d.getSeconds()).padStart(2,'0')}`);
     }, 1000);
     return () => clearInterval(interval);
   }, []);
 
   return (
     <motion.div
-      className="font-mono tracking-wider"
-      style={{ color: '#1a4060', fontSize: '0.95rem', letterSpacing: '0.15em' }}
-      animate={{ opacity: [0.7, 1, 0.7] }}
+      className="font-mono tracking-widest select-none"
+      style={{ color: '#1e5a7a', fontSize: '2rem', letterSpacing: '0.1em', fontWeight: 300 }}
+      animate={{ opacity: [0.6, 1, 0.6] }}
       transition={{ duration: 4, repeat: Infinity }}
     >
       {time}
@@ -717,65 +743,91 @@ function BriefingPanel({ conversation, lastUpdated, onAction }: BriefingPanelPro
   const hour = new Date().getHours();
   const periodLabel = hour < 12 ? 'MORNING CHECK-IN' : hour < 17 ? 'MID-DAY CHECK-IN' : 'END-OF-DAY BRIEF';
   const jarvisMessages = conversation.filter(e => e.role === 'jarvis');
+  const lastMessage = jarvisMessages[jarvisMessages.length - 1];
+  const olderMessages = jarvisMessages.slice(-4, -1);
   const CHIPS = [
-    "What's blocking us right now?",
-    "Show today's pending reviews",
-    "Status of all agents",
-    "What should I focus on next?",
+    "What's blocking us?",
+    "Today's reviews",
+    "Agent status",
+    "What's next?",
   ];
   return (
-    <div className="panel-border corner-decoration rounded h-full flex flex-col" style={{ padding: '10px 12px' }}>
+    <div className="panel-border corner-decoration rounded h-full flex flex-col" style={{ padding: '12px 14px' }}>
+      {/* Header */}
       <div className="flex items-center justify-between mb-2 flex-shrink-0">
         <motion.span
-          className="text-xs tracking-widest text-jarvis"
+          className="text-jarvis tracking-widest"
           style={{ fontSize: '0.6rem' }}
           animate={{ opacity: [0.7, 1, 0.7] }}
           transition={{ duration: 4, repeat: Infinity }}
         >
           {periodLabel}
         </motion.span>
-        <span className="text-xs tracking-widest" style={{ color: '#1a3040', fontSize: '0.55rem' }}>
-          refreshed {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs tracking-widest px-1.5 py-0.5" style={{ color: '#00d4ff', background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.15)', fontSize: '0.5rem' }}>
+            COGNITIVE CORE
+          </span>
+          <span className="text-xs tracking-widest" style={{ color: '#1a3040', fontSize: '0.5rem' }}>
+            {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
       </div>
       <div className="glow-line flex-shrink-0" />
-      <div className="flex-1 overflow-y-auto mt-2 space-y-3 min-h-0">
-        {jarvisMessages.length > 0 ? (
-          jarvisMessages.slice(-4).map(entry => (
-            <div key={entry.id}>
-              <div className="text-xs tracking-widest mb-1" style={{ color: '#1a4060', fontSize: '0.55rem' }}>
-                {entry.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-              </div>
-              <div className="text-xs leading-relaxed" style={{ color: '#4a9fc0', lineHeight: '1.7', fontSize: '0.72rem' }}>
-                {entry.text}
-              </div>
+
+      {/* Main briefing content */}
+      <div className="flex-1 overflow-y-auto min-h-0 py-2">
+        {lastMessage ? (
+          <div className="space-y-3">
+            {/* Most recent Jarvis message — large and prominent */}
+            <div
+              className="leading-relaxed"
+              style={{ color: '#c8e8f8', fontSize: '0.95rem', lineHeight: '1.75', fontFamily: 'Courier New, monospace' }}
+            >
+              {lastMessage.text}
             </div>
-          ))
+            {/* Older messages — dimmer, smaller */}
+            {olderMessages.length > 0 && (
+              <div className="space-y-2 pt-2" style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
+                {olderMessages.map(entry => (
+                  <div key={entry.id}>
+                    <div className="tracking-widest mb-0.5" style={{ color: '#1a3040', fontSize: '0.5rem' }}>
+                      {entry.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    <div className="leading-relaxed" style={{ color: '#2a6080', fontSize: '0.72rem', lineHeight: '1.6' }}>
+                      {entry.text}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full gap-3 py-8">
+          <div className="flex flex-col justify-center h-full gap-3 py-6">
             <motion.div
-              animate={{ opacity: [0.3, 0.7, 0.3] }}
+              animate={{ opacity: [0.3, 0.8, 0.3] }}
               transition={{ duration: 2.5, repeat: Infinity }}
-              className="text-xs tracking-widest text-center"
-              style={{ color: '#2a5f80', fontSize: '0.6rem' }}
+              className="tracking-widest"
+              style={{ color: '#2a5f80', fontSize: '0.65rem' }}
             >
               AWAITING BRIEFING
             </motion.div>
-            <div className="text-xs text-center leading-relaxed" style={{ color: '#1a3040', fontSize: '0.65rem' }}>
-              Click the orb or ask Jarvis anything to start your session
+            <div className="leading-relaxed" style={{ color: '#1a3040', fontSize: '0.8rem', lineHeight: '1.7' }}>
+              Click the orb or type a question to start your session. Jarvis will brief you on what matters most right now.
             </div>
           </div>
         )}
       </div>
-      <div className="flex-shrink-0 mt-3 pt-2" style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
-        <div className="text-xs tracking-widest mb-1.5" style={{ color: '#1a3040', fontSize: '0.55rem' }}>QUICK ACTIONS</div>
+
+      {/* Quick-action chips */}
+      <div className="flex-shrink-0 pt-2" style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
+        <div className="tracking-widest mb-1.5" style={{ color: '#1a3040', fontSize: '0.5rem' }}>QUICK ACTIONS</div>
         <div className="flex flex-wrap gap-1.5">
           {CHIPS.map(chip => (
             <button
               key={chip}
               onClick={() => onAction(chip)}
-              className="px-2 py-1 text-xs tracking-widest transition-all hover:opacity-80"
-              style={{ border: '1px solid rgba(0,212,255,0.18)', color: '#2a5f80', background: 'transparent', fontSize: '0.55rem', borderRadius: 2 }}
+              className="px-2 py-1 tracking-widest transition-all hover:opacity-80"
+              style={{ border: '1px solid rgba(0,212,255,0.2)', color: '#2a6080', background: 'transparent', fontSize: '0.55rem', borderRadius: 2 }}
             >
               {chip}
             </button>
