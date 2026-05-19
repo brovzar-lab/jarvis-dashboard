@@ -1,4 +1,5 @@
 import type { Agent, Issue, DashboardData } from '../types';
+import type { ObsidianNote } from './integrations';
 
 const BOARD_USER_ID = import.meta.env.VITE_BOARD_USER_ID || 'Ii0txDoen0NV1MLw20AKX79qv2cC6eR4';
 import { DEMO_DATA } from './demo-data';
@@ -161,7 +162,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   return { agents, inReviewIssues, myInbox, activeIssues, blockedIssues, waitingOnMeIssues, lemaPitches, companyLabels };
 }
 
-export function buildJarvisContext(data: DashboardData, companyId?: string): string {
+export function buildJarvisContext(data: DashboardData, companyId?: string, obsidianNotes?: ObsidianNote[]): string {
   const activeAgents = data.agents.filter(a => a.status === 'in_progress' || a.status === 'busy');
   const activeTaskMap = new Map<string, Issue>();
   for (const issue of data.activeIssues) {
@@ -213,6 +214,13 @@ export function buildJarvisContext(data: DashboardData, companyId?: string): str
     .map(i => `${i.identifier} → ${i.id}`)
     .join('\n');
 
+  const vaultSection = obsidianNotes && obsidianNotes.length > 0
+    ? `OBSIDIAN VAULT NOTES (${obsidianNotes.length} notes — use these to answer questions about Billy's strategy, meetings, research, and notes):
+${obsidianNotes.map(n =>
+  `- "${n.title}" [${n.path}] ${n.tags.length ? `#${n.tags.join(' #')}` : ''}${n.preview ? `\n  Preview: ${n.preview}` : ''}`
+).join('\n')}`
+    : 'OBSIDIAN VAULT NOTES: Not connected (demo mode). Set OBSIDIAN_API_URL and OBSIDIAN_API_KEY on Vercel to enable.';
+
   return `CURRENT DASHBOARD STATE:
 Date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 Total agents (all companies): ${data.agents.length}
@@ -241,7 +249,9 @@ AGENT ID MAP (for command execution):
 ${agentIdMap || 'None'}
 
 ISSUE ID MAP (for command execution):
-${issueIdMap || 'None'}`;
+${issueIdMap || 'None'}
+
+${vaultSection}`;
 }
 
 export function getCompanyId(): string {

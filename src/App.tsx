@@ -29,6 +29,8 @@ import { askJarvis } from './services/jarvis-ai';
 import { askJarvisStreaming } from './services/jarvis-stream';
 import { addClaudeUsage } from './services/cost-tracker';
 import { buildJarvisContext, isDemoMode, getCompanyId } from './services/paperclip';
+import { fetchObsidian } from './services/integrations';
+import type { ObsidianNote } from './services/integrations';
 import { speak, stopSpeaking, unlockAudio } from './services/tts';
 import { parseCommandResponse, executeCommand } from './services/command-executor';
 import type { JarvisCommand } from './services/command-executor';
@@ -92,6 +94,14 @@ export default function App() {
   const { data: emails = [] } = useEmail();
   const { data: calendarEvents = [] } = useCalendar();
   const sessionCost = useCostTracker();
+  const [obsidianNotes, setObsidianNotes] = useState<ObsidianNote[]>([]);
+
+  useEffect(() => {
+    fetchObsidian().then(setObsidianNotes);
+    // Refresh vault notes every 5 minutes
+    const interval = setInterval(() => fetchObsidian().then(setObsidianNotes), 300_000);
+    return () => clearInterval(interval);
+  }, []);
   const [newIssueIds, setNewIssueIds] = useState<Set<string>>(new Set());
   const prevIssueIdsRef = useRef<Set<string>>(new Set());
 
@@ -230,7 +240,7 @@ export default function App() {
     stopSpeaking();
 
     const baseContext = dashboardData
-      ? buildJarvisContext(dashboardData, COMPANY_ID)
+      ? buildJarvisContext(dashboardData, COMPANY_ID, obsidianNotes)
       : 'Dashboard data unavailable — operating in limited mode.';
 
     const emailContext = emails.length > 0
@@ -336,7 +346,7 @@ export default function App() {
       isProcessingRef.current = false;
       if (!commandDetected) setOrbState('idle');
     }
-  }, [dashboardData, handleExecute, handleCancel]);
+  }, [dashboardData, obsidianNotes, handleExecute, handleCancel]);
 
   const { isListening, isSupported, startListening } = useSpeechRecognition(processQuery);
 
