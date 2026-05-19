@@ -45,3 +45,9 @@ export interface ConversationEntry {
   text: string;
   timestamp: Date;
 }
+
+export interface ActionItem {
+  id: string;
+  text: string;
+  timestamp: Date;
+}

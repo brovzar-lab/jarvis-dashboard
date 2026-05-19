@@ -34,13 +34,50 @@ import type { ObsidianNote } from './services/integrations';
 import { speak, stopSpeaking, unlockAudio } from './services/tts';
 import { parseCommandResponse, executeCommand } from './services/command-executor';
 import type { JarvisCommand } from './services/command-executor';
-import type { OrbState, ConversationEntry, Issue } from './types';
+import type { OrbState, ConversationEntry, Issue, ActionItem } from './types';
 
 const COMPANY_ID = getCompanyId();
 
 const CONV_STORAGE_KEY = 'jarvis_conversation_history';
 
 let entryCounter = 0;
+
+const ACTION_TRIGGERS = [
+  /\byou (need|should|must|have|'ll|will) (to )?(call|email|contact|message|text|reach out|follow up|get back|respond|reply|send|review|sign|prepare|schedule|check|approve|confirm|update|discuss|address|handle|look at|go over|take care of)\b/i,
+  /\byou (need to|should|must|have to|'ll (need|want) to|want to|are going to|'re going to)\b/i,
+  /\b(don't forget (to )?|make sure (to |you )|be sure to|remember to)\b/i,
+  /\b(get back to|follow up with|reach out to|respond to|reply to)\b/i,
+];
+
+const ACTION_PREAMBLES = [
+  /^(you need to|you should|you must|you have to|you'll need to|you'll want to|you will want to|you are going to|you're going to|you want to)\s+/i,
+  /^(don't forget to|don't forget |make sure to|make sure you|be sure to|remember to)\s+/i,
+  /^(i('d| would) (recommend|suggest)( you| that you)?)\s+/i,
+];
+
+function extractActionItems(text: string): string[] {
+  const items: string[] = [];
+  const sentences = text.match(/[^.!?\n]+[.!?]*/g) ?? [];
+  for (let raw of sentences) {
+    const s = raw.trim();
+    if (!s || s.length < 20) continue;
+    if (!ACTION_TRIGGERS.some(p => p.test(s))) continue;
+    let item = s;
+    for (const p of ACTION_PREAMBLES) {
+      const cleaned = item.replace(p, '');
+      if (cleaned !== item) { item = cleaned; break; }
+    }
+    item = item
+      .replace(/,?\s*(sir|as soon as (possible|you can)|asap|right away|immediately|at your earliest convenience)\.?$/gi, '')
+      .replace(/[.!?]+$/, '')
+      .trim();
+    if (item.length > 8 && item.length <= 150) {
+      item = item.charAt(0).toUpperCase() + item.slice(1);
+      if (!items.includes(item)) items.push(item);
+    }
+  }
+  return items;
+}
 
 function loadConversation(): ConversationEntry[] {
   try {
@@ -65,6 +102,7 @@ export default function App() {
   const [agentView, setAgentView] = useState<'grid' | 'behaviors'>('behaviors');
   const [leftTab, setLeftTab] = useState<'brief' | 'agents' | 'email' | 'calendar' | 'brain'>('brief');
   const [playingPitchId, setPlayingPitchId] = useState<string | null>(null);
+  const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const hearPitchSessionRef = useRef(0);
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
@@ -162,9 +200,23 @@ export default function App() {
     setLastUpdated(new Date());
   };
 
+  const addActionItems = (text: string) => {
+    const items = extractActionItems(text);
+    if (items.length === 0) return;
+    setActionItems(prev => [
+      ...items.map(t => ({ id: String(++entryCounter), text: t, timestamp: new Date() })),
+      ...prev,
+    ].slice(0, 20));
+  };
+
+  const handleDismissItem = useCallback((id: string) => {
+    setActionItems(prev => prev.filter(a => a.id !== id));
+  }, []);
+
   // Proactive briefing — fires once per session (5s desktop, first-gesture mobile)
   const { isBriefing, skipBriefing } = useProactiveBriefing(dashboardData, conversation.length > 0, async (text) => {
     addEntry('jarvis', text);
+    addActionItems(text);
     setOrbState('speaking');
     await speak(text);
     setOrbState('idle');
@@ -229,6 +281,7 @@ export default function App() {
     const reply = result.success ? result.message : `Command failed, sir. ${result.message}`;
     convHistoryRef.current.push({ role: 'assistant', content: reply });
     addEntry('jarvis', reply);
+    addActionItems(reply);
     setOrbState('speaking');
     await speak(reply);
     setOrbState('idle');
@@ -323,6 +376,7 @@ export default function App() {
               e.id === jarvisEntryId ? { ...e, text: fullText } : e
             ));
             convHistoryRef.current.push({ role: 'assistant', content: fullText });
+            addActionItems(fullText);
           }
         }
       );
@@ -346,6 +400,7 @@ export default function App() {
         } else {
           convHistoryRef.current.push({ role: 'assistant', content: response });
           addEntry('jarvis', response);
+          addActionItems(response);
           setOrbState('speaking');
           await speak(response);
           setOrbState('idle');
@@ -616,7 +671,8 @@ export default function App() {
           <div className="flex-1 min-h-0 overflow-hidden">
             {leftTab === 'brief' ? (
               <BriefingPanel
-                conversation={conversation}
+                actionItems={actionItems}
+                onDismissItem={handleDismissItem}
                 lastUpdated={lastUpdated}
                 onAction={handleTextSubmit}
               />
@@ -783,17 +839,15 @@ function TimePeriodIndicator() {
 }
 
 interface BriefingPanelProps {
-  conversation: ConversationEntry[];
+  actionItems: ActionItem[];
+  onDismissItem: (id: string) => void;
   lastUpdated: Date;
   onAction: (text: string) => void;
 }
 
-function BriefingPanel({ conversation, lastUpdated, onAction }: BriefingPanelProps) {
+function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction }: BriefingPanelProps) {
   const hour = new Date().getHours();
   const periodLabel = hour < 12 ? 'MORNING CHECK-IN' : hour < 17 ? 'MID-DAY CHECK-IN' : 'END-OF-DAY BRIEF';
-  const jarvisMessages = conversation.filter(e => e.role === 'jarvis');
-  const lastMessage = jarvisMessages[jarvisMessages.length - 1];
-  const olderMessages = jarvisMessages.slice(-4, -1);
   const CHIPS = [
     "What's blocking us?",
     "Today's reviews",
@@ -814,7 +868,7 @@ function BriefingPanel({ conversation, lastUpdated, onAction }: BriefingPanelPro
         </motion.span>
         <div className="flex items-center gap-2">
           <span className="text-xs tracking-widest px-1.5 py-0.5" style={{ color: '#00d4ff', background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.15)', fontSize: '0.5rem' }}>
-            COGNITIVE CORE
+            ACTION ITEMS{actionItems.length > 0 ? ` · ${actionItems.length}` : ''}
           </span>
           <span className="text-xs tracking-widest" style={{ color: '#1a3040', fontSize: '0.5rem' }}>
             {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
@@ -823,32 +877,43 @@ function BriefingPanel({ conversation, lastUpdated, onAction }: BriefingPanelPro
       </div>
       <div className="glow-line flex-shrink-0" />
 
-      {/* Main briefing content */}
+      {/* Action items feed */}
       <div className="flex-1 overflow-y-auto min-h-0 py-2">
-        {lastMessage ? (
-          <div className="space-y-3">
-            {/* Most recent Jarvis message — large and prominent */}
-            <div
-              className="leading-relaxed"
-              style={{ color: '#c8e8f8', fontSize: '0.95rem', lineHeight: '1.75', fontFamily: 'Courier New, monospace' }}
-            >
-              {lastMessage.text}
-            </div>
-            {/* Older messages — dimmer, smaller */}
-            {olderMessages.length > 0 && (
-              <div className="space-y-2 pt-2" style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
-                {olderMessages.map(entry => (
-                  <div key={entry.id}>
-                    <div className="tracking-widest mb-0.5" style={{ color: '#1a3040', fontSize: '0.5rem' }}>
-                      {entry.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                    <div className="leading-relaxed" style={{ color: '#2a6080', fontSize: '0.72rem', lineHeight: '1.6' }}>
-                      {entry.text}
-                    </div>
+        {actionItems.length > 0 ? (
+          <div className="space-y-1.5">
+            {actionItems.map((item, i) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: Math.min(i * 0.06, 0.3) }}
+                className="flex items-start gap-2"
+                style={{
+                  background: 'rgba(0,212,255,0.03)',
+                  border: '1px solid rgba(0,212,255,0.1)',
+                  borderRadius: 3,
+                  padding: '7px 9px',
+                }}
+              >
+                <span style={{ color: '#1a5a80', fontSize: '0.55rem', marginTop: 3, flexShrink: 0 }}>▶</span>
+                <div className="flex-1 min-w-0">
+                  <div style={{ color: '#a8d8f0', fontSize: '0.78rem', lineHeight: 1.55 }}>{item.text}</div>
+                  <div className="tracking-widest" style={{ color: '#0d2030', fontSize: '0.48rem', marginTop: 2 }}>
+                    {item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+                <button
+                  onClick={() => onDismissItem(item.id)}
+                  title="Dismiss"
+                  className="flex-shrink-0 transition-colors"
+                  style={{ color: '#1a4060', fontSize: '0.7rem', lineHeight: 1, padding: '1px 3px' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#00d4ff')}
+                  onMouseLeave={e => (e.currentTarget.style.color = '#1a4060')}
+                >
+                  ✓
+                </button>
+              </motion.div>
+            ))}
           </div>
         ) : (
           <div className="flex flex-col justify-center h-full gap-3 py-6">
@@ -861,7 +926,7 @@ function BriefingPanel({ conversation, lastUpdated, onAction }: BriefingPanelPro
               AWAITING BRIEFING
             </motion.div>
             <div className="leading-relaxed" style={{ color: '#1a3040', fontSize: '0.8rem', lineHeight: '1.7' }}>
-              Click the orb or type a question to start your session. Jarvis will brief you on what matters most right now.
+              Click the orb or type a question. Action items Jarvis mentions will appear here.
             </div>
           </div>
         )}
