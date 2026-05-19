@@ -21,6 +21,8 @@ import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { useWakeWord } from './hooks/useWakeWord';
 import { useNotificationPolling } from './hooks/useNotificationPolling';
 import { useDashboard } from './hooks/useDashboard';
+import { useEmail } from './hooks/useEmail';
+import { useCalendar } from './hooks/useCalendar';
 import { useCostTracker } from './hooks/useCostTracker';
 import { useProactiveBriefing } from './hooks/useProactiveBriefing';
 import { askJarvis } from './services/jarvis-ai';
@@ -87,6 +89,8 @@ export default function App() {
   }, [conversation]);
 
   const { data: dashboardData, isLoading, refetch: refreshDashboard } = useDashboard();
+  const { data: emails = [] } = useEmail();
+  const { data: calendarEvents = [] } = useCalendar();
   const sessionCost = useCostTracker();
   const [newIssueIds, setNewIssueIds] = useState<Set<string>>(new Set());
   const prevIssueIdsRef = useRef<Set<string>>(new Set());
@@ -225,9 +229,21 @@ export default function App() {
     setOrbState('thinking');
     stopSpeaking();
 
-    const context = dashboardData
+    const baseContext = dashboardData
       ? buildJarvisContext(dashboardData, COMPANY_ID)
       : 'Dashboard data unavailable — operating in limited mode.';
+
+    const emailContext = emails.length > 0
+      ? `\nGMAIL INBOX (${emails.length} messages, ${emails.filter(e => e.unread).length} unread):\n` +
+        emails.map(e => `- [${e.unread ? 'UNREAD' : 'READ'}${e.priority === 'high' ? ' HIGH-PRIORITY' : ''}] From: ${e.from} | Subject: ${e.subject} | ${e.time} | Preview: ${e.preview.slice(0, 120)}`).join('\n')
+      : '\nGMAIL INBOX: No messages loaded.';
+
+    const calendarContext = calendarEvents.length > 0
+      ? `\nCALENDAR — TODAY (${calendarEvents.length} events, ${calendarEvents.filter(e => !e.past).length} upcoming):\n` +
+        calendarEvents.map(e => `- [${e.past ? 'PAST' : 'UPCOMING'}] ${e.title} at ${e.time}${e.duration ? ` (${e.duration})` : ''}${e.attendees ? ` — ${e.attendees} attendees` : ''}`).join('\n')
+      : '\nCALENDAR: No events today.';
+
+    const context = baseContext + emailContext + calendarContext;
 
     const jarvisEntryId = String(++entryCounter);
     let ttsChain = Promise.resolve();

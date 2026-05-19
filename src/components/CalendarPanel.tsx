@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { fetchCalendar, type CalendarEvent } from '../services/integrations';
+import type { CalendarEvent } from '../services/integrations';
+import { useCalendar } from '../hooks/useCalendar';
 
 function eventTypeStyle(type: CalendarEvent['type']): { color: string; bg: string; border: string } {
   if (type === 'meeting') return { color: '#7ecfff', bg: 'rgba(0,212,255,0.06)', border: 'rgba(0,212,255,0.15)' };
@@ -17,12 +17,7 @@ const TYPE_LABELS: Record<CalendarEvent['type'], string> = {
 };
 
 export function CalendarPanel() {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchCalendar().then(data => { setEvents(data); setLoading(false); });
-  }, []);
+  const { data: events = [], isLoading: loading } = useCalendar();
 
   const upcoming = events.filter(e => !e.past);
   const nextEvent = upcoming[0];

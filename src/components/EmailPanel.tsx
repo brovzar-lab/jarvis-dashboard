@@ -1,14 +1,9 @@
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { fetchEmails, type Email } from '../services/integrations';
+import type { Email } from '../services/integrations';
+import { useEmail } from '../hooks/useEmail';
 
 export function EmailPanel() {
-  const [emails, setEmails] = useState<Email[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchEmails().then(data => { setEmails(data); setLoading(false); });
-  }, []);
+  const { data: emails = [], isLoading: loading } = useEmail();
 
   const unreadCount = emails.filter(e => e.unread).length;
 
