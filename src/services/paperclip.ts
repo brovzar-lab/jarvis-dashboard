@@ -340,3 +340,50 @@ ${vaultSection}`;
 export function getCompanyId(): string {
   return COMPANY_ID_ENV.split(',')[0]?.trim() ?? '';
 }
+
+interface PitchDocument {
+  key: string;
+  body?: string;
+  title?: string;
+}
+
+export async function fetchPitchDocuments(pitchId: string): Promise<PitchDocument[]> {
+  try {
+    const raw = await apiGet<unknown>(`/api/issues/${pitchId}/documents`);
+    if (Array.isArray(raw)) return raw as PitchDocument[];
+    if (raw && typeof raw === 'object') {
+      const r = raw as Record<string, unknown>;
+      const arr = r['documents'] ?? r['data'];
+      if (Array.isArray(arr)) return arr as PitchDocument[];
+    }
+  } catch {
+    // degrade gracefully
+  }
+  return [];
+}
+
+export async function executePitchVerdict(
+  issueId: string,
+  verdict: 'develop' | 'vault' | 'kill',
+): Promise<void> {
+  const statusMap: Record<string, string> = {
+    develop: 'in_progress',
+    vault: 'blocked',
+    kill: 'cancelled',
+  };
+  const commentMap: Record<string, string> = {
+    develop: 'Greenlighted by Billy via JARVIS',
+    vault: 'Vaulted by Billy via JARVIS',
+    kill: 'Killed by Billy via JARVIS',
+  };
+
+  const post = (action: string, params: Record<string, unknown>) =>
+    fetch('/api/paperclip-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, params, companyId: LEMA_COMPANY_ID }),
+    });
+
+  await post('patch_issue', { issueId, status: statusMap[verdict] });
+  await post('add_comment', { issueId, body: commentMap[verdict] });
+}

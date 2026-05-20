@@ -9,7 +9,8 @@ import { ObsidianPanel } from './components/ObsidianPanel';
 import { RightIssuesTabs } from './components/RightIssuesTabs';
 import { PitchCarousel } from './components/PitchCarousel';
 import { AgendaPanel } from './components/AgendaPanel';
-import { PitchesPanel } from './components/PitchesPanel';
+import { PitchReviewPanel } from './components/PitchReviewPanel';
+import { usePitchReview } from './hooks/usePitchReview';
 import { ConversationHistory } from './components/ConversationHistory';
 import { MetricsBar } from './components/MetricsBar';
 import { SuggestedMovesStrip } from './components/SuggestedMovesStrip';
@@ -38,6 +39,15 @@ import type { JarvisCommand } from './services/command-executor';
 import type { OrbState, ConversationEntry, Issue, ActionItem, ContextCard, ContextCardKind } from './types';
 
 const COMPANY_ID = getCompanyId();
+
+const PITCH_TRIGGERS = [
+  'pitch me the new projects',
+  "pitch me what's in the gate",
+  'pitch me whats in the gate',
+  'run the development gate',
+  "what's pending review",
+  'whats pending review',
+];
 
 const CONV_STORAGE_KEY = 'jarvis_conversation_history';
 const ITEMS_STORAGE_KEY = 'jarvis_action_items';
@@ -154,6 +164,7 @@ export default function App() {
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [micReady, setMicReady] = useState(false);
   const hearPitchSessionRef = useRef(0);
+  const startListeningRef = useRef<() => void>(() => {});
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
   const isProcessingRef = useRef(false);
@@ -303,6 +314,20 @@ export default function App() {
       ...prev,
     ].slice(0, 20));
   };
+
+  const {
+    session: pitchSession,
+    sessionRef: pitchSessionRef,
+    startPitchReview,
+    handleVerdict: handlePitchVerdict,
+    abortSession: abortPitchSession,
+    pitchCurrent,
+    speakMoreDetail: speakPitchDetail,
+  } = usePitchReview({
+    setOrbState,
+    onReadyForVerdict: () => startListeningRef.current(),
+    addEntry,
+  });
 
   const handleDismissItem = useCallback((id: string) => {
     setActionItems(prev => prev.filter(a => a.id !== id));
@@ -459,6 +484,50 @@ export default function App() {
       const isCancellation = ['cancel', 'no', 'nope', 'abort', 'stop', 'never mind', 'nevermind', 'forget it'].some(w => lower === w || lower.startsWith(w + ' '));
       if (isAffirmative) { handleExecute(); return; }
       if (isCancellation) { handleCancel(); return; }
+    }
+
+    // Pitch session: intercept all queries when a session is active
+    const pitchState = pitchSessionRef.current;
+    if (pitchState.active) {
+      const lower = userText.trim().toLowerCase();
+      if (['stop', 'end session', 'stop review', 'end review'].some(w => lower.includes(w))) {
+        abortPitchSession();
+        return;
+      }
+      if (pitchState.status === 'awaiting_verdict') {
+        addEntry('user', userText);
+        convHistoryRef.current.push({ role: 'user', content: userText });
+        if (['develop', 'green light', 'greenlight', 'yes'].some(w => lower.includes(w))) {
+          handlePitchVerdict('develop');
+        } else if (['vault', 'save it'].some(w => lower.includes(w))) {
+          handlePitchVerdict('vault');
+        } else if (['kill', 'pass', 'no', 'next'].some(w => lower === w || lower.startsWith(w + ' '))) {
+          handlePitchVerdict('kill');
+        } else if (['repeat', 'say that again'].some(w => lower.includes(w))) {
+          pitchCurrent();
+        } else if (lower.includes('more detail')) {
+          speakPitchDetail();
+        } else {
+          const reminder = 'Say develop, vault, or kill to decide this pitch, sir.';
+          addEntry('jarvis', reminder);
+          setOrbState('speaking');
+          speak(reminder).then(() => setOrbState('idle'));
+        }
+        return;
+      }
+      // During pitching/executing/fetching — block all other queries
+      return;
+    }
+
+    // Pitch trigger phrase detection
+    {
+      const normalized = userText.trim().toLowerCase();
+      if (PITCH_TRIGGERS.some(t => normalized.includes(t))) {
+        addEntry('user', userText);
+        convHistoryRef.current.push({ role: 'user', content: userText });
+        startPitchReview(dashboardData?.lemaPitches ?? []);
+        return;
+      }
     }
 
     isProcessingRef.current = true;
@@ -643,9 +712,12 @@ export default function App() {
       isProcessingRef.current = false;
       if (!commandDetected) setOrbState('idle');
     }
-  }, [dashboardData, obsidianNotes, memoryContext, handleExecute, handleCancel]);
+  }, [dashboardData, obsidianNotes, memoryContext, handleExecute, handleCancel, pitchSessionRef, startPitchReview, handlePitchVerdict, abortPitchSession, pitchCurrent, speakPitchDetail]);
 
   const { isListening, isSupported, startListening } = useSpeechRecognition(processQuery);
+
+  // Keep startListeningRef in sync so usePitchReview can call startListening after TTS
+  startListeningRef.current = startListening;
 
   // Duck music when JARVIS TTS is speaking
   useEffect(() => {
@@ -998,7 +1070,13 @@ export default function App() {
             {isLoading ? (
               <LoadingSkeleton label="LEMON VIRTUAL PITCHES" />
             ) : (
-              <PitchesPanel issues={dashboardData?.lemaPitches ?? []} onHearPitch={handleHearPitch} playingPitchId={playingPitchId} />
+              <PitchReviewPanel
+                session={pitchSession}
+                pendingPitches={(dashboardData?.lemaPitches ?? []).filter(p => p.status === 'in_review')}
+                onStartReview={() => startPitchReview(dashboardData?.lemaPitches ?? [])}
+                onVerdict={handlePitchVerdict}
+                onAbort={abortPitchSession}
+              />
             )}
           </div>
           <div className="flex-1 min-h-[90px]">
