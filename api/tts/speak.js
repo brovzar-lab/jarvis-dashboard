@@ -12,11 +12,16 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { text } = req.body;
+  const { text, voiceSettings } = req.body;
   if (!text || typeof text !== 'string') {
     res.status(400).json({ error: 'text is required' });
     return;
   }
+
+  const speed = typeof voiceSettings?.speed === 'number' ? voiceSettings.speed : 1.2;
+  const stability = typeof voiceSettings?.stability === 'number' ? voiceSettings.stability : 0.75;
+  const similarityBoost = typeof voiceSettings?.similarity_boost === 'number' ? voiceSettings.similarity_boost : 0.85;
+  const style = typeof voiceSettings?.style === 'number' ? voiceSettings.style : 0.3;
 
   let upstream;
   try {
@@ -31,11 +36,11 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           text,
           model_id: 'eleven_turbo_v2_5',
-          speed: 1.2,
+          speed,
           voice_settings: {
-            stability: 0.75,
-            similarity_boost: 0.85,
-            style: 0.3,
+            stability,
+            similarity_boost: similarityBoost,
+            style,
             use_speaker_boost: true,
           },
         }),

@@ -46,8 +46,9 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
     setSession(IDLE_STATE);
   }, []);
 
-  const buildPitchText = useCallback(async (issue: Issue): Promise<string> => {
-    const cached = docCacheRef.current.get(issue.id);
+  const buildPitchText = useCallback(async (issue: Issue, isFirst = false): Promise<string> => {
+    const cacheKey = isFirst ? `${issue.id}:first` : issue.id;
+    const cached = docCacheRef.current.get(cacheKey);
     if (cached) return cached;
 
     let synopsis = issue.description?.slice(0, 600) ?? '';
@@ -70,14 +71,17 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
       }
     }
 
-    const parts = [`OK Billy, next one. This one's called ${issue.title}. Here's the deal...`];
+    const opening = isFirst
+      ? `Alright Billy, first one up. This one's called ${issue.title}. Here's the deal...`
+      : `OK Billy, next one. This one's called ${issue.title}. Here's the deal...`;
+    const parts = [opening];
     if (synopsis) parts.push(synopsis);
     if (tone) parts.push(`Tone: ${tone}.`);
     if (comps) parts.push(`Comps: ${comps}.`);
     parts.push('Develop, vault, or kill?');
 
     const text = parts.join(' ');
-    docCacheRef.current.set(issue.id, text);
+    docCacheRef.current.set(cacheKey, text);
     return text;
   }, []);
 
@@ -91,7 +95,7 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
     const issue = s.pitches[s.currentIndex];
     update({ status: 'pitching' });
 
-    const text = await buildPitchText(issue);
+    const text = await buildPitchText(issue, s.currentIndex === 0);
     if (abortRef.current) return;
 
     setOrbState('speaking');
@@ -150,10 +154,18 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
     }
     addEntry('jarvis', confirmText);
 
-    await Promise.all([
+    const [, verdictOk] = await Promise.all([
       speak(confirmText),
-      isDemoMode ? Promise.resolve() : executePitchVerdict(issue.id, verdict).catch(console.warn),
+      isDemoMode
+        ? Promise.resolve(true)
+        : executePitchVerdict(issue.id, verdict)
+            .then(() => true)
+            .catch(err => { console.error('[handleVerdict] verdict failed:', err); return false; }),
     ]);
+
+    if (!verdictOk) {
+      addEntry('jarvis', `Warning: Paperclip sync failed for "${issue.title}". Check the console.`);
+    }
 
     if (abortRef.current) return;
     setOrbState('idle');

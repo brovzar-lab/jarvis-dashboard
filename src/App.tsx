@@ -31,7 +31,8 @@ import { addClaudeUsage } from './services/cost-tracker';
 import { buildJarvisContext, isDemoMode, getCompanyId } from './services/paperclip';
 import { fetchObsidian, searchEmails, searchObsidian } from './services/integrations';
 import type { ObsidianNote } from './services/integrations';
-import { speak, stopSpeaking, unlockAudio } from './services/tts';
+import { speak, stopSpeaking, unlockAudio, setVoiceParams, getVoiceParams } from './services/tts';
+import type { TtsVoiceParams } from './services/tts';
 import { tryStartMorningTheme, stopMorningTheme, isMorningThemePlaying, duckForTts, unduckFromTts, duckForMic, unduckFromMic } from './services/morning-theme';
 import { parseCommandResponse, executeCommand } from './services/command-executor';
 import type { JarvisCommand } from './services/command-executor';
@@ -161,6 +162,9 @@ export default function App() {
   const [contextCard, setContextCard] = useState<ContextCard | null>(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [micReady, setMicReady] = useState(false);
+  const [voiceParams, setVoiceParamsState] = useState<TtsVoiceParams>(() => getVoiceParams());
+  const [voiceTunerOpen, setVoiceTunerOpen] = useState(false);
+  const voiceTunerRef = useRef<HTMLDivElement>(null);
   const startListeningRef = useRef<() => void>(() => {});
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
@@ -169,6 +173,25 @@ export default function App() {
   const lastActivityRef = useRef<number>(Date.now());
 
   const updateActivity = () => { lastActivityRef.current = Date.now(); };
+
+  useEffect(() => {
+    if (!voiceTunerOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (voiceTunerRef.current && !voiceTunerRef.current.contains(e.target as Node)) {
+        setVoiceTunerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [voiceTunerOpen]);
+
+  const updateVoiceParam = useCallback((key: keyof TtsVoiceParams, value: number) => {
+    setVoiceParamsState(prev => {
+      const updated = { ...prev, [key]: value };
+      setVoiceParams(updated);
+      return updated;
+    });
+  }, []);
 
   // Restore convHistoryRef from persisted conversation once on mount
   useEffect(() => {
@@ -836,6 +859,73 @@ export default function App() {
               ♫ STOP MUSIC
             </button>
           )}
+          {/* Voice parameter tuner */}
+          <div ref={voiceTunerRef} className="relative">
+            <button
+              onClick={() => setVoiceTunerOpen(v => !v)}
+              title="Tune JARVIS voice"
+              className="flex items-center gap-1 px-2 py-1 tracking-widest transition-all hover:opacity-80"
+              style={{
+                border: `1px solid rgba(0,212,255,${voiceTunerOpen ? '0.6' : '0.2'})`,
+                color: voiceTunerOpen ? '#00d4ff' : '#2a6080',
+                background: voiceTunerOpen ? 'rgba(0,212,255,0.08)' : 'transparent',
+                fontSize: '0.5rem',
+                borderRadius: 2,
+              }}
+            >
+              ◈ VOICE
+            </button>
+            {voiceTunerOpen && (
+              <div
+                className="absolute right-0 mt-1 z-50 p-3 font-mono"
+                style={{
+                  top: '100%',
+                  background: '#020f1e',
+                  border: '1px solid rgba(0,212,255,0.3)',
+                  borderRadius: 4,
+                  minWidth: 210,
+                  boxShadow: '0 4px 24px rgba(0,0,0,0.7)',
+                }}
+              >
+                <div className="tracking-widest mb-3" style={{ color: '#00d4ff', fontSize: '0.48rem', letterSpacing: '0.2em' }}>
+                  VOICE · ELEVENLABS
+                </div>
+                {([
+                  { key: 'speed' as const, label: 'SPEED', min: 0.5, max: 2.0 },
+                  { key: 'stability' as const, label: 'STABILITY', min: 0, max: 1 },
+                  { key: 'similarity_boost' as const, label: 'SIMILARITY', min: 0, max: 1 },
+                  { key: 'style' as const, label: 'STYLE', min: 0, max: 1 },
+                ] as const).map(({ key, label, min, max }) => (
+                  <div key={key} className="mb-3">
+                    <div className="flex justify-between mb-1">
+                      <span className="tracking-widest" style={{ color: '#2a6080', fontSize: '0.42rem' }}>{label}</span>
+                      <span style={{ color: '#00d4ff', fontSize: '0.42rem' }}>{voiceParams[key].toFixed(2)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={min}
+                      max={max}
+                      step={0.05}
+                      value={voiceParams[key]}
+                      onChange={e => updateVoiceParam(key, parseFloat(e.target.value))}
+                      style={{ width: '100%', accentColor: '#00d4ff', cursor: 'pointer' }}
+                    />
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    const defaults = { speed: 1.2, stability: 0.75, similarity_boost: 0.85, style: 0.3 };
+                    setVoiceParamsState(defaults);
+                    setVoiceParams(defaults);
+                  }}
+                  className="w-full tracking-widest py-1 mt-1 transition-opacity hover:opacity-80"
+                  style={{ color: '#1a4060', border: '1px solid rgba(0,212,255,0.1)', fontSize: '0.42rem', borderRadius: 2, background: 'transparent' }}
+                >
+                  RESET DEFAULTS
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={() => handleTextSubmit('save session')}
             title="Save session memory to Obsidian"

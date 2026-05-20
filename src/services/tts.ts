@@ -7,6 +7,41 @@ declare global {
   }
 }
 
+export interface TtsVoiceParams {
+  speed: number;
+  stability: number;
+  similarity_boost: number;
+  style: number;
+}
+
+const DEFAULT_VOICE_PARAMS: TtsVoiceParams = {
+  speed: 1.2,
+  stability: 0.75,
+  similarity_boost: 0.85,
+  style: 0.3,
+};
+
+const VOICE_PARAMS_KEY = 'jarvis_voice_params';
+
+function loadVoiceParams(): TtsVoiceParams {
+  try {
+    const saved = localStorage.getItem(VOICE_PARAMS_KEY);
+    if (saved) return { ...DEFAULT_VOICE_PARAMS, ...(JSON.parse(saved) as Partial<TtsVoiceParams>) };
+  } catch {}
+  return { ...DEFAULT_VOICE_PARAMS };
+}
+
+let voiceParams: TtsVoiceParams = loadVoiceParams();
+
+export function setVoiceParams(params: Partial<TtsVoiceParams>): void {
+  voiceParams = { ...voiceParams, ...params };
+  try { localStorage.setItem(VOICE_PARAMS_KEY, JSON.stringify(voiceParams)); } catch {}
+}
+
+export function getVoiceParams(): TtsVoiceParams {
+  return { ...voiceParams };
+}
+
 let audioContext: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let currentAudio: HTMLAudioElement | null = null;
@@ -55,7 +90,7 @@ async function speakElevenLabs(text: string): Promise<void> {
     res = await fetch('/api/tts/speak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, voiceSettings: voiceParams }),
     });
   } catch {
     console.warn('TTS proxy network error, falling back to browser TTS');
@@ -84,7 +119,7 @@ async function speakElevenLabs(text: string): Promise<void> {
       return new Promise<void>(resolve => {
         const source = audioContext!.createBufferSource();
         source.buffer = audioBuffer;
-        source.playbackRate.value = 1.2;
+        source.playbackRate.value = voiceParams.speed;
         source.connect(audioContext!.destination);
         currentSource = source;
         source.onended = () => {
@@ -154,7 +189,7 @@ async function speakBrowser(text: string): Promise<void> {
   return new Promise(resolve => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.pitch = 0.85;
-    utterance.rate = 1.14;
+    utterance.rate = voiceParams.speed * 0.95;
     utterance.volume = 1;
     if (preferred) utterance.voice = preferred;
 

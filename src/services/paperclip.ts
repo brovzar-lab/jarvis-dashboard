@@ -396,16 +396,25 @@ export async function executePitchVerdict(
     kill:    { billyVerdict: 'reject',  queueStatus: 'archived' },
   };
 
-  const post = (action: string, params: Record<string, unknown>) =>
-    fetch('/api/paperclip-action', {
+  const post = async (action: string, params: Record<string, unknown>) => {
+    const res = await fetch('/api/paperclip-action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, params, companyId: LEMA_COMPANY_ID }),
     });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      console.error(`[executePitchVerdict] ${action} failed ${res.status}:`, data);
+      throw new Error(`${action} failed: ${res.status} — ${JSON.stringify(data)}`);
+    }
+    console.log(`[executePitchVerdict] ${action} OK:`, data);
+    return data;
+  };
 
+  console.log(`[executePitchVerdict] projectId=${projectId} verdict=${verdict}`, verdictMap[verdict]);
   await post('patch_project', { projectId, ...verdictMap[verdict] });
   // Best-effort comment — projects may not support the issues comment endpoint
   const ts = new Date().toISOString();
   const labels = { develop: 'Greenlighted', vault: 'Vaulted', kill: 'Killed' };
-  await post('add_comment', { issueId: projectId, body: `${labels[verdict]} by Billy via JARVIS — ${ts}` }).catch(() => {});
+  post('add_comment', { issueId: projectId, body: `${labels[verdict]} by Billy via JARVIS — ${ts}` }).catch(() => {});
 }
