@@ -307,12 +307,76 @@ export default function App() {
     setActionItems(prev => prev.filter(a => a.id !== id));
   }, []);
 
-  // Proactive briefing — fires once per session (5s desktop, first-gesture mobile)
-  const { isBriefing, skipBriefing } = useProactiveBriefing(dashboardData, conversation.length > 0, async (text) => {
-    addEntry('jarvis', text);
-    addActionItems(text);
-    setOrbState('speaking');
-    await speak(text);
+  // Proactive briefing — fires once per session via Claude, leading with calendar/email
+  const { isBriefing, skipBriefing } = useProactiveBriefing(dashboardData, conversation.length > 0, async () => {
+    if (!dashboardData) return;
+
+    const baseContext = buildJarvisContext(dashboardData, COMPANY_ID, obsidianNotes);
+
+    const emailContext = emails.length > 0
+      ? `\nGMAIL INBOX (${emails.filter((e: { unread: boolean }) => e.unread).length} unread):\n` +
+        emails.slice(0, 12).map((e: { unread: boolean; priority: string; inInbox?: boolean; from: string; subject: string; time: string; preview: string }) =>
+          `- [${e.unread ? 'UNREAD' : 'READ'}${e.priority === 'high' ? ' HIGH-PRI' : ''}] From: ${e.from} | Subject: ${e.subject} | ${e.time} | ${e.preview.slice(0, 60)}`
+        ).join('\n')
+      : '\nGMAIL: No messages loaded yet.';
+
+    const calendarContext = calendarEvents.length > 0
+      ? `\nCALENDAR TODAY (${calendarEvents.filter(e => !e.past).length} upcoming events):\n` +
+        calendarEvents.map(e => `- [${e.past ? 'PAST' : 'UPCOMING'}] ${e.title} at ${e.time}${e.duration ? ` (${e.duration})` : ''}${e.attendees ? ` — ${e.attendees} attendees` : ''}`).join('\n')
+      : '\nCALENDAR: No events loaded yet.';
+
+    const briefContext = baseContext + emailContext + calendarContext;
+
+    const hour = new Date().getHours();
+    const timePeriod = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+    const briefQuery = `Deliver my proactive ${timePeriod} briefing. PRIORITY ORDER: (1) calendar — what meetings are coming up today and when; (2) email — any urgent or high-priority messages; (3) one concise sentence on Paperclip operational status only if critical. Do NOT enumerate agents, blocked counts, or issue lists — I can see those on the dashboard. Speak naturally as JARVIS. Under 90 words total. No questions.`;
+
+    const briefEntryId = String(++entryCounter);
+    let ttsChain = Promise.resolve();
+    let firstSentence = true;
+
+    setConversation(prev => [...prev, {
+      id: briefEntryId,
+      role: 'jarvis' as const,
+      text: '…',
+      timestamp: new Date(),
+    }]);
+
+    try {
+      await askJarvisStreaming(
+        briefQuery,
+        briefContext,
+        [],
+        (sentence) => {
+          if (sentence.includes('[CTX_CARD]') || sentence.includes('[/CTX_CARD]')) return;
+          if (firstSentence) { firstSentence = false; setOrbState('speaking'); }
+          setConversation(prev => prev.map(e =>
+            e.id === briefEntryId ? { ...e, text: (e.text === '…' ? '' : e.text + ' ') + sentence } : e
+          ));
+          ttsChain = ttsChain.then(() => speak(sentence));
+        },
+        (fullText, usage) => {
+          addClaudeUsage(usage.input_tokens, usage.output_tokens);
+          const { cleanText } = parseContextCard(fullText);
+          setConversation(prev => prev.map(e =>
+            e.id === briefEntryId ? { ...e, text: cleanText } : e
+          ));
+          convHistoryRef.current.push({ role: 'assistant', content: cleanText });
+          addActionItems(cleanText);
+        },
+        memoryContext || undefined,
+      );
+      await ttsChain;
+    } catch {
+      // Streaming failed — fall back to a simple greeting
+      const fallback = `Good ${timePeriod} sir. Your dashboard is ready.`;
+      setConversation(prev => prev.map(e =>
+        e.id === briefEntryId ? { ...e, text: fallback } : e
+      ));
+      setOrbState('speaking');
+      await speak(fallback);
+    }
+
     setOrbState('idle');
   });
 
