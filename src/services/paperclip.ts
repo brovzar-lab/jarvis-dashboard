@@ -317,9 +317,11 @@ ${obsidianNotes.map(n =>
 ).join('\n')}`
     : 'OBSIDIAN VAULT NOTES: Not connected. Set OBSIDIAN_API_URL and OBSIDIAN_API_KEY on Vercel to enable.';
 
+  const _now = new Date();
   return `${lemonContextSection}
 CURRENT DASHBOARD STATE:
-Date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+Date: ${_now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mexico_City' })}
+Time: ${_now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Mexico_City' })} (Mexico City)
 Total agents (all companies): ${data.agents.length}
 Active agents: ${activeAgents.length}/${data.agents.length}
 ${companyId ? `Company ID (use for create_issue): ${companyId}` : ''}

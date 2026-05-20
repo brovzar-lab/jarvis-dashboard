@@ -43,11 +43,13 @@ function getHourLabel(hour: number): string {
 
 function buildDemoEvents(): CalendarEvent[] {
   const now = new Date();
-  const h = now.getHours();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  // past = true when current time is at or past the event's end time (startHour*60 + durationMins)
+  const isPast = (startHour: number, durationMins: number) => nowMins >= startHour * 60 + durationMins;
   return [
-    { id: 'c1', title: 'BR — Investor call Accel Partners', time: getHourLabel(10), duration: '45m', type: 'meeting', attendees: 3, past: h > 10 },
-    { id: 'c2', title: 'BR — Series A review', time: getHourLabel(14), duration: '1h', type: 'meeting', attendees: 5, past: h > 15 },
-    { id: 'c3', title: 'BR — Pitch rehearsal Sequoia deck', time: getHourLabel(16), duration: '1h', type: 'meeting', attendees: 2, past: h > 17 },
+    { id: 'c1', title: 'BR — Investor call Accel Partners', time: getHourLabel(10), duration: '45m', type: 'meeting', attendees: 3, past: isPast(10, 45) },
+    { id: 'c2', title: 'BR — Series A review', time: getHourLabel(14), duration: '1h', type: 'meeting', attendees: 5, past: isPast(14, 60) },
+    { id: 'c3', title: 'BR — Pitch rehearsal Sequoia deck', time: getHourLabel(16), duration: '1h', type: 'meeting', attendees: 2, past: isPast(16, 60) },
   ];
 }
 

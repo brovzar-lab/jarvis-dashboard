@@ -195,14 +195,19 @@ export default function App() {
     });
   }, []);
 
-  // Restore convHistoryRef from persisted conversation once on mount
+  // Restore convHistoryRef from persisted conversation once on mount.
+  // Only include entries from today — stale history from previous days causes JARVIS to
+  // reference the wrong date/context when answering follow-up questions.
   useEffect(() => {
     if (initialHistoryRestoredRef.current) return;
     initialHistoryRestoredRef.current = true;
-    convHistoryRef.current = conversation.map(e => ({
-      role: e.role === 'jarvis' ? 'assistant' : 'user' as 'user' | 'assistant',
-      content: e.text,
-    }));
+    const todayStr = new Date().toLocaleDateString('sv');
+    convHistoryRef.current = conversation
+      .filter(e => new Date(e.timestamp).toLocaleDateString('sv') === todayStr)
+      .map(e => ({
+        role: e.role === 'jarvis' ? 'assistant' : 'user' as 'user' | 'assistant',
+        content: e.text,
+      }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

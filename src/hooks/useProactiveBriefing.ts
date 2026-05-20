@@ -4,6 +4,12 @@ import { stopSpeaking } from '../services/tts';
 
 const SESSION_KEY = 'jarvis_briefed';
 
+// Returns today's date string in YYYY-MM-DD format (local time), used as the session key value
+// so the briefing fires once per calendar day even if the tab/PWA stays open overnight.
+function todayKey(): string {
+  return new Date().toLocaleDateString('sv');
+}
+
 export function useProactiveBriefing(
   dashboardData: DashboardData | undefined,
   _hasExistingHistory: boolean,
@@ -21,11 +27,11 @@ export function useProactiveBriefing(
 
   useEffect(() => {
     if (calledRef.current) return;
-    if (sessionStorage.getItem(SESSION_KEY)) return;
+    if (sessionStorage.getItem(SESSION_KEY) === todayKey()) return;
     if (!dashboardData) return;
 
     calledRef.current = true;
-    sessionStorage.setItem(SESSION_KEY, 'true');
+    sessionStorage.setItem(SESSION_KEY, todayKey());
 
     const fireBriefing = () => {
       setIsBriefing(true);
