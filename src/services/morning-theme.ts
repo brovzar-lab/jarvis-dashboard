@@ -4,7 +4,7 @@ const THEME_URL =
   (import.meta.env.VITE_MORNING_THEME_URL as string | undefined)?.trim() ||
   '/morning-theme.mp3';
 
-const BASE_VOLUME = 0.25;
+const BASE_VOLUME = 0.30;
 
 let themeAudio: HTMLAudioElement | null = null;
 let started = false;
@@ -156,7 +156,7 @@ export function resetMorningTheme(): void {
 
 export function duckForTts(): void {
   ttsActive = true;
-  fadeTo(computeTargetVolume(), 200);
+  fadeTo(computeTargetVolume(), 1500);
 }
 
 export function unduckFromTts(): void {

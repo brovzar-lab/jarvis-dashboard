@@ -357,27 +357,46 @@ export default function App() {
     setActionItems(prev => prev.filter(a => a.id !== id));
   }, []);
 
+  // Refs for seamless compliment → briefing handoff without a React state cycle gap.
+  // fireBriefingNowRef is set after useProactiveBriefing and called at the end of the compliment.
+  // complimentSkippedRef prevents starting the briefing when the user presses a key to skip.
+  const fireBriefingNowRef = useRef<(() => boolean) | null>(null);
+  const complimentSkippedRef = useRef(false);
+
   // Opening compliment — fires once per session (tab open/close cycle) before the briefing
   const { isComplimenting, skipCompliment } = useOpeningCompliment(micReady, async () => {
+    complimentSkippedRef.current = false;
     duckForTts();
     const line = await generateOpeningCompliment();
     addEntry('jarvis', line);
     setOrbState('speaking');
     await speak(line);
-    await new Promise<void>(resolve => setTimeout(resolve, 3000));
-    setOrbState('idle');
+    if (complimentSkippedRef.current) {
+      setOrbState('idle');
+      return;
+    }
+    // Chain directly into the briefing — zero gap, no idle flash
+    const fired = fireBriefingNowRef.current?.() ?? false;
+    if (!fired) {
+      // No briefing today or data not ready — unduck will fire via orbState effect
+      setOrbState('idle');
+    }
+    // If briefing fired, it owns orbState from here
   });
 
   // Any keypress skips the compliment while it's playing
   useEffect(() => {
     if (!isComplimenting) return;
-    const onKeyDown = () => skipCompliment();
+    const onKeyDown = () => {
+      complimentSkippedRef.current = true;
+      skipCompliment();
+    };
     window.addEventListener('keydown', onKeyDown, { once: true });
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isComplimenting, skipCompliment]);
 
-  // Proactive briefing — fires once per calendar day, after the opening compliment finishes
-  const { isBriefing, skipBriefing } = useProactiveBriefing(dashboardData, conversation.length > 0, !isComplimenting, async () => {
+  // Proactive briefing — fires once per calendar day, chained seamlessly after the compliment
+  const { isBriefing, skipBriefing, fireBriefingNow } = useProactiveBriefing(dashboardData, conversation.length > 0, !isComplimenting, async () => {
     if (!dashboardData) return;
 
     // Duck music immediately — don't wait for first TTS sentence to arrive
@@ -451,6 +470,9 @@ export default function App() {
 
     setOrbState('idle');
   });
+
+  // Wire up direct-fire ref so compliment callback can chain into briefing without a state cycle
+  fireBriefingNowRef.current = fireBriefingNow;
 
   // Any keypress skips the briefing while it's playing
   useEffect(() => {
