@@ -21,6 +21,8 @@ import { useEmail } from './hooks/useEmail';
 import { useCalendar } from './hooks/useCalendar';
 import { useCostTracker } from './hooks/useCostTracker';
 import { useProactiveBriefing } from './hooks/useProactiveBriefing';
+import { useOpeningCompliment } from './hooks/useOpeningCompliment';
+import { generateOpeningCompliment } from './services/opening-compliment';
 import { useCardAction } from './hooks/useCardAction';
 import { askJarvis } from './services/jarvis-ai';
 import { askJarvisStreaming } from './services/jarvis-stream';
@@ -355,8 +357,27 @@ export default function App() {
     setActionItems(prev => prev.filter(a => a.id !== id));
   }, []);
 
-  // Proactive briefing — fires once per session via Claude, leading with calendar/email
-  const { isBriefing, skipBriefing } = useProactiveBriefing(dashboardData, conversation.length > 0, async () => {
+  // Opening compliment — fires once per session (tab open/close cycle) before the briefing
+  const { isComplimenting, skipCompliment } = useOpeningCompliment(micReady, async () => {
+    duckForTts();
+    const line = await generateOpeningCompliment();
+    addEntry('jarvis', line);
+    setOrbState('speaking');
+    await speak(line);
+    await new Promise<void>(resolve => setTimeout(resolve, 3000));
+    setOrbState('idle');
+  });
+
+  // Any keypress skips the compliment while it's playing
+  useEffect(() => {
+    if (!isComplimenting) return;
+    const onKeyDown = () => skipCompliment();
+    window.addEventListener('keydown', onKeyDown, { once: true });
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isComplimenting, skipCompliment]);
+
+  // Proactive briefing — fires once per calendar day, after the opening compliment finishes
+  const { isBriefing, skipBriefing } = useProactiveBriefing(dashboardData, conversation.length > 0, !isComplimenting, async () => {
     if (!dashboardData) return;
 
     // Duck music immediately — don't wait for first TTS sentence to arrive

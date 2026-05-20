@@ -13,6 +13,7 @@ function todayKey(): string {
 export function useProactiveBriefing(
   dashboardData: DashboardData | undefined,
   _hasExistingHistory: boolean,
+  enabled: boolean,
   onBriefing: () => Promise<void>,
 ): { isBriefing: boolean; skipBriefing: () => void } {
   const calledRef = useRef(false);
@@ -26,6 +27,7 @@ export function useProactiveBriefing(
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     if (calledRef.current) return;
     if (sessionStorage.getItem(SESSION_KEY) === todayKey()) return;
     if (!dashboardData) return;
@@ -40,7 +42,7 @@ export function useProactiveBriefing(
 
     const timer = setTimeout(fireBriefing, 3000);
     return () => clearTimeout(timer);
-  }, [dashboardData]);
+  }, [dashboardData, enabled]);
 
   return { isBriefing, skipBriefing };
 }
