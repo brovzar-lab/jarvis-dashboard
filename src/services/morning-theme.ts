@@ -4,7 +4,7 @@ const THEME_URL =
   (import.meta.env.VITE_MORNING_THEME_URL as string | undefined)?.trim() ||
   '/morning-theme.mp3';
 
-const BASE_VOLUME = 0.10;
+const BASE_VOLUME = 0.25;
 
 let themeAudio: HTMLAudioElement | null = null;
 let started = false;
@@ -67,7 +67,7 @@ function getAudio(): HTMLAudioElement {
 
 function computeTargetVolume(): number {
   if (micActive) return BASE_VOLUME * 0.15;  // ~1.5% — mic window
-  if (ttsActive) return BASE_VOLUME * 0.15;  // ~1.5% — JARVIS speaking
+  if (ttsActive) return BASE_VOLUME * 0.5;   // 12.5% — JARVIS speaking (drops to background)
   return BASE_VOLUME;                         // 10%  — ambient idle
 }
 
