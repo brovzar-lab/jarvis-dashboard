@@ -359,6 +359,9 @@ export default function App() {
   const { isBriefing, skipBriefing } = useProactiveBriefing(dashboardData, conversation.length > 0, async () => {
     if (!dashboardData) return;
 
+    // Duck music immediately — don't wait for first TTS sentence to arrive
+    duckForTts();
+
     const baseContext = buildJarvisContext(dashboardData, COMPANY_ID, obsidianNotes);
 
     const emailContext = emails.length > 0
