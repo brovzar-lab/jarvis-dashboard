@@ -31,6 +31,7 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           text,
           model_id: 'eleven_turbo_v2_5',
+          speed: 1.2,
           voice_settings: {
             stability: 0.75,
             similarity_boost: 0.85,

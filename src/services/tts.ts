@@ -84,6 +84,7 @@ async function speakElevenLabs(text: string): Promise<void> {
       return new Promise<void>(resolve => {
         const source = audioContext!.createBufferSource();
         source.buffer = audioBuffer;
+        source.playbackRate.value = 1.2;
         source.connect(audioContext!.destination);
         currentSource = source;
         source.onended = () => {
@@ -153,7 +154,7 @@ async function speakBrowser(text: string): Promise<void> {
   return new Promise(resolve => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.pitch = 0.85;
-    utterance.rate = 0.95;
+    utterance.rate = 1.14;
     utterance.volume = 1;
     if (preferred) utterance.voice = preferred;
 
