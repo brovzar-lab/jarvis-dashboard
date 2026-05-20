@@ -1,13 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VoiceOrb } from './components/VoiceOrb';
-import { AgentGrid } from './components/AgentGrid';
 import { AgentBehaviorsPanel } from './components/AgentBehaviorsPanel';
 import { EmailPanel } from './components/EmailPanel';
 import { CalendarPanel } from './components/CalendarPanel';
-import { ObsidianPanel } from './components/ObsidianPanel';
 import { RightIssuesTabs } from './components/RightIssuesTabs';
-import { AgendaPanel } from './components/AgendaPanel';
 import { PitchReviewPanel } from './components/PitchReviewPanel';
 import { usePitchReview } from './hooks/usePitchReview';
 import { ConversationHistory } from './components/ConversationHistory';
@@ -156,8 +153,6 @@ export default function App() {
   const [confirmCountdown, setConfirmCountdown] = useState(0);
   const [micMuted, setMicMuted] = useState(false);
   const [visualAlerts, setVisualAlerts] = useState<string[]>([]);
-  const [agentView, setAgentView] = useState<'grid' | 'behaviors'>('behaviors');
-  const [leftTab, setLeftTab] = useState<'brief' | 'agents' | 'email' | 'calendar' | 'brain'>('brief');
   const [actionItems, setActionItems] = useState<ActionItem[]>(loadActionItems);
   const [contextCard, setContextCard] = useState<ContextCard | null>(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
@@ -977,7 +972,7 @@ export default function App() {
       <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-3 p-3 md:p-4 overflow-y-auto md:overflow-hidden">
 
         {/* Center: Orb — first on mobile (order-first), visual col 2 on desktop (md:order-2) */}
-        <div className="md:flex-[40] min-h-0 flex flex-col order-first md:order-2">
+        <div className="md:flex-[26] min-h-0 flex flex-col order-first md:order-2">
           <div className="flex-1 panel-border corner-decoration rounded flex flex-col relative overflow-hidden">
             {/* Grid + radial glow background */}
             <div
@@ -1005,8 +1000,8 @@ export default function App() {
               </motion.div>
             )}
 
-            {/* Orb — centered, constrained to ~70% of its previous height */}
-            <div className="flex-1 min-h-0 flex items-center justify-center relative" style={{ maxHeight: '38vh' }}>
+            {/* Orb — centered, constrained height */}
+            <div className="flex-1 min-h-0 flex items-center justify-center relative" style={{ maxHeight: '28vh' }}>
               <VoiceOrb state={currentOrbState} onClick={handleOrbClick} orbSize={200} />
             </div>
 
@@ -1060,53 +1055,8 @@ export default function App() {
               )}
             </div>
 
-            {/* Lemon Virtual Pitches — voice session + idle count, consolidated in center */}
-            {dashboardData && (
-              <div className="flex-shrink-0" style={{ borderTop: '1px solid rgba(0,212,255,0.08)', height: 220 }}>
-                <PitchReviewPanel
-                  session={pitchSession}
-                  pendingPitches={(dashboardData.lemaPitches ?? []).filter(p => p.status === 'in_review')}
-                  onStartReview={() => startPitchReview(dashboardData.lemaPitches ?? [])}
-                  onVerdict={handlePitchVerdict}
-                  onAbort={abortPitchSession}
-                />
-              </div>
-            )}
-
-            {/* Text input embedded at bottom */}
-            <div className="flex-shrink-0" style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
-              <TextInput onSubmit={handleTextSubmit} disabled={isProcessingRef.current} />
-            </div>
-          </div>
-        </div>
-
-        {/* Left: Intel tabs — second on mobile (order-2), visual col 1 on desktop (md:order-1) */}
-        <div className="md:flex-[35] min-h-0 desktop-agents-panel flex flex-col gap-0 order-2 md:order-1">
-          {/* Tab bar */}
-          <div
-            className="flex items-center gap-0 mb-0 flex-shrink-0"
-            style={{ borderBottom: '1px solid #0a2a4a' }}
-          >
-            {(['brief', 'agents', 'email', 'calendar', 'brain'] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => setLeftTab(tab)}
-                className="flex-1 text-center py-1.5 text-xs tracking-widest transition-colors"
-                style={{
-                  color: leftTab === tab ? '#00d4ff' : '#2a5f80',
-                  background: leftTab === tab ? 'rgba(0,212,255,0.06)' : 'transparent',
-                  borderBottom: leftTab === tab ? '1px solid #00d4ff' : '1px solid transparent',
-                  marginBottom: -1,
-                  fontSize: '0.55rem',
-                }}
-              >
-                {tab === 'brief' ? '◆' : ''}{tab === 'calendar' ? 'CAL' : tab === 'brain' ? 'BRAIN' : tab.toUpperCase()}
-              </button>
-            ))}
-          </div>
-          {/* Tab content */}
-          <div className="flex-1 min-h-0 overflow-hidden">
-            {leftTab === 'brief' ? (
+            {/* Briefing — action items + quick actions, between orb and input */}
+            <div className="flex-1 min-h-0 overflow-hidden" style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
               <BriefingPanel
                 actionItems={actionItems}
                 onDismissItem={handleDismissItem}
@@ -1115,36 +1065,41 @@ export default function App() {
                 contextCard={contextCard}
                 obsidianNotes={obsidianNotes.slice(0, 8)}
               />
-            ) : leftTab === 'agents' ? (
-              isLoading ? (
-                <LoadingSkeleton label={agentView === 'behaviors' ? 'AGENT BEHAVIORS' : 'AGENT STATUS'} />
-              ) : agentView === 'behaviors' ? (
-                <AgentBehaviorsPanel
-                  agents={dashboardData?.agents ?? []}
-                  activeIssues={dashboardData?.activeIssues ?? []}
-                  companyLabels={dashboardData?.companyLabels ?? {}}
-                  onToggleView={() => setAgentView('grid')}
-                />
-              ) : (
-                <AgentGrid
-                  agents={dashboardData?.agents ?? []}
-                  activeIssues={dashboardData?.activeIssues ?? []}
-                  onToggleView={() => setAgentView('behaviors')}
-                />
-              )
-            ) : leftTab === 'email' ? (
-              <EmailPanel onAction={handleTextSubmit} />
-            ) : leftTab === 'calendar' ? (
-              <CalendarPanel onAction={handleTextSubmit} />
-            ) : (
-              <ObsidianPanel onAction={handleTextSubmit} />
-            )}
+            </div>
+
+            {/* Text input embedded at bottom */}
+            <div className="flex-shrink-0" style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
+              <TextInput onSubmit={handleTextSubmit} disabled={isProcessingRef.current} />
+            </div>
           </div>
         </div>
 
-        {/* Right: Tabbed issues + Pitches + Agenda — visual col 3 on desktop */}
-        <div className="md:flex-[25] min-h-0 flex flex-col gap-3 desktop-side-panel order-3">
-          <div className="flex-[3] min-h-[200px]">
+        {/* Left: Email + Calendar — second on mobile (order-2), visual col 1 on desktop (md:order-1) */}
+        <div className="md:flex-[38] min-h-0 desktop-agents-panel flex flex-col gap-3 order-2 md:order-1">
+          <div className="flex-[6] min-h-0 panel-border corner-decoration rounded overflow-hidden">
+            <EmailPanel onAction={handleTextSubmit} />
+          </div>
+          <div className="flex-[5] min-h-0 panel-border corner-decoration rounded overflow-hidden">
+            <CalendarPanel onAction={handleTextSubmit} />
+          </div>
+        </div>
+
+        {/* Right: Pitches + Issues + Agents — visual col 3 on desktop */}
+        <div className="md:flex-[36] min-h-0 flex flex-col gap-3 desktop-side-panel order-3">
+          <div className="flex-[4] min-h-0">
+            {dashboardData ? (
+              <PitchReviewPanel
+                session={pitchSession}
+                pendingPitches={(dashboardData.lemaPitches ?? []).filter(p => p.status === 'in_review')}
+                onStartReview={() => startPitchReview(dashboardData.lemaPitches ?? [])}
+                onVerdict={handlePitchVerdict}
+                onAbort={abortPitchSession}
+              />
+            ) : (
+              <LoadingSkeleton label="LEMON VIRTUAL PITCHES" />
+            )}
+          </div>
+          <div className="flex-[4] min-h-0">
             {isLoading ? (
               <LoadingSkeleton label="PENDING REVIEW" />
             ) : (
@@ -1157,11 +1112,15 @@ export default function App() {
               />
             )}
           </div>
-          <div className="flex-1 min-h-[120px]">
+          <div className="flex-[3] min-h-0">
             {isLoading ? (
-              <LoadingSkeleton label="TODAY'S AGENDA" />
+              <LoadingSkeleton label="AGENTS" />
             ) : (
-              <AgendaPanel issues={dashboardData?.myInbox ?? []} onRefresh={refreshDashboard} />
+              <AgentBehaviorsPanel
+                agents={dashboardData?.agents ?? []}
+                activeIssues={dashboardData?.activeIssues ?? []}
+                companyLabels={dashboardData?.companyLabels ?? {}}
+              />
             )}
           </div>
         </div>
