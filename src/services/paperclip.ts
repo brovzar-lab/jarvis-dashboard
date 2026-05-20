@@ -362,19 +362,26 @@ export async function fetchPitchDocuments(pitchId: string): Promise<PitchDocumen
   return [];
 }
 
+export function detectPitchMediaType(title: string, description?: string): 'tv' | 'movie' {
+  const text = `${title} ${description ?? ''}`.toLowerCase();
+  const tvKw = ['series', 'temporada', 'season', 'episode', 'episodio', 'limited series', 'miniseries', 'tv series', 'show', 'episodios'];
+  return tvKw.some(kw => text.includes(kw)) ? 'tv' : 'movie';
+}
+
 export async function executePitchVerdict(
-  issueId: string,
+  projectId: string,
   verdict: 'develop' | 'vault' | 'kill',
 ): Promise<void> {
+  // LEMA pitches are Paperclip projects — use patch_project, not patch_issue
   const statusMap: Record<string, string> = {
-    develop: 'in_progress',
-    vault: 'blocked',
+    develop: 'active',
+    vault: 'paused',
     kill: 'cancelled',
   };
   const commentMap: Record<string, string> = {
-    develop: 'Greenlighted by Billy via JARVIS',
-    vault: 'Vaulted by Billy via JARVIS',
-    kill: 'Killed by Billy via JARVIS',
+    develop: `Greenlighted by Billy via JARVIS — ${new Date().toISOString()}`,
+    vault: `Vaulted by Billy via JARVIS — ${new Date().toISOString()}`,
+    kill: `Killed by Billy via JARVIS — ${new Date().toISOString()}`,
   };
 
   const post = (action: string, params: Record<string, unknown>) =>
@@ -384,6 +391,7 @@ export async function executePitchVerdict(
       body: JSON.stringify({ action, params, companyId: LEMA_COMPANY_ID }),
     });
 
-  await post('patch_issue', { issueId, status: statusMap[verdict] });
-  await post('add_comment', { issueId, body: commentMap[verdict] });
+  await post('patch_project', { projectId, status: statusMap[verdict] });
+  // Best-effort comment — projects may not support the issues comment endpoint
+  await post('add_comment', { issueId: projectId, body: commentMap[verdict] }).catch(() => {});
 }

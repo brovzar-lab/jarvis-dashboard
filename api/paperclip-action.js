@@ -1,4 +1,4 @@
-const ALLOWED_ACTIONS = new Set(['patch_issue', 'create_issue', 'add_comment', 'get_issue', 'trigger_heartbeat']);
+const ALLOWED_ACTIONS = new Set(['patch_issue', 'patch_project', 'create_issue', 'add_comment', 'get_issue', 'trigger_heartbeat']);
 
 function resolveApiKey(companyId) {
   if (companyId) {
@@ -39,6 +39,19 @@ export default async function handler(req, res) {
       if (patch.assigneeAgentId !== undefined) allowed.assigneeAgentId = patch.assigneeAgentId;
       if (patch.priority) allowed.priority = patch.priority;
       upstream = await fetch(`${baseUrl}/api/issues/${issueId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(allowed),
+      });
+    } else if (action === 'patch_project') {
+      const { projectId, ...patch } = params;
+      if (!projectId) { res.status(400).json({ error: 'patch_project requires projectId' }); return; }
+      const apiKey = resolveApiKey(companyId);
+      if (!apiKey) { res.status(503).json({ error: 'Paperclip API key not configured' }); return; }
+      const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
+      const allowed = {};
+      if (patch.status) allowed.status = patch.status;
+      upstream = await fetch(`${baseUrl}/api/projects/${projectId}`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify(allowed),

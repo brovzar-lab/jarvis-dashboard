@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { speak, stopSpeaking } from '../services/tts';
-import { fetchPitchDocuments, executePitchVerdict, isDemoMode } from '../services/paperclip';
+import { fetchPitchDocuments, executePitchVerdict, detectPitchMediaType, isDemoMode } from '../services/paperclip';
 import type { Issue, OrbState } from '../types';
 
 export type PitchStatus = 'idle' | 'fetching' | 'pitching' | 'awaiting_verdict' | 'executing' | 'summary';
@@ -138,8 +138,16 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
     update({ status: 'executing', stats: newStats });
     setOrbState('thinking');
 
-    const labels = { develop: 'Greenlighting', vault: 'Vaulting', kill: 'Killing' };
-    const confirmText = `${labels[verdict]} "${issue.title}", sir.`;
+    let confirmText: string;
+    if (verdict === 'develop') {
+      const mediaType = detectPitchMediaType(issue.title, issue.description);
+      const board = mediaType === 'tv' ? 'TV Development' : 'Movie Development';
+      confirmText = `Sending "${issue.title}" to ${board}.`;
+    } else if (verdict === 'vault') {
+      confirmText = 'Vaulted. We can pick it up later.';
+    } else {
+      confirmText = 'Killed. Done with that one.';
+    }
     addEntry('jarvis', confirmText);
 
     await Promise.all([

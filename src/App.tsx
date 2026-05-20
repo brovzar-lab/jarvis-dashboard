@@ -7,7 +7,6 @@ import { EmailPanel } from './components/EmailPanel';
 import { CalendarPanel } from './components/CalendarPanel';
 import { ObsidianPanel } from './components/ObsidianPanel';
 import { RightIssuesTabs } from './components/RightIssuesTabs';
-import { PitchCarousel } from './components/PitchCarousel';
 import { AgendaPanel } from './components/AgendaPanel';
 import { PitchReviewPanel } from './components/PitchReviewPanel';
 import { usePitchReview } from './hooks/usePitchReview';
@@ -158,12 +157,10 @@ export default function App() {
   const [visualAlerts, setVisualAlerts] = useState<string[]>([]);
   const [agentView, setAgentView] = useState<'grid' | 'behaviors'>('behaviors');
   const [leftTab, setLeftTab] = useState<'brief' | 'agents' | 'email' | 'calendar' | 'brain'>('brief');
-  const [playingPitchId, setPlayingPitchId] = useState<string | null>(null);
   const [actionItems, setActionItems] = useState<ActionItem[]>(loadActionItems);
   const [contextCard, setContextCard] = useState<ContextCard | null>(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [micReady, setMicReady] = useState(false);
-  const hearPitchSessionRef = useRef(0);
   const startListeningRef = useRef<() => void>(() => {});
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
@@ -426,22 +423,6 @@ export default function App() {
   }, []);
 
   handleCancelRef.current = handleCancel;
-
-  const handleHearPitch = useCallback(async (issue: Issue) => {
-    const session = ++hearPitchSessionRef.current;
-    setPlayingPitchId(issue.id);
-    stopSpeaking();
-    const pitchText = issue.identifier
-      ? `Pitch brief for ${issue.identifier}: ${issue.title}. Ask me for details on this pitch.`
-      : `Pitch brief for "${issue.title}". Ask me for details on this pitch.`;
-    addEntry('jarvis', pitchText);
-    setOrbState('speaking');
-    await speak(pitchText);
-    if (hearPitchSessionRef.current === session) {
-      setOrbState('idle');
-      setPlayingPitchId(null);
-    }
-  }, []);
 
   const handleExecute = useCallback(async () => {
     const cmd = pendingCommandRef.current;
@@ -972,14 +953,17 @@ export default function App() {
               )}
             </div>
 
-            {/* Lemon Virtual Pitches carousel — swipe left/right, DEVELOP/VAULT/KILL */}
-            {dashboardData && (dashboardData.lemaPitches?.length ?? 0) > 0 && (
-              <PitchCarousel
-                issues={dashboardData.lemaPitches ?? []}
-                onHearPitch={handleHearPitch}
-                playingPitchId={playingPitchId}
-                onRefresh={refreshDashboard}
-              />
+            {/* Lemon Virtual Pitches — voice session + idle count, consolidated in center */}
+            {dashboardData && (
+              <div className="flex-shrink-0" style={{ borderTop: '1px solid rgba(0,212,255,0.08)', height: 220 }}>
+                <PitchReviewPanel
+                  session={pitchSession}
+                  pendingPitches={(dashboardData.lemaPitches ?? []).filter(p => p.status === 'in_review')}
+                  onStartReview={() => startPitchReview(dashboardData.lemaPitches ?? [])}
+                  onVerdict={handlePitchVerdict}
+                  onAbort={abortPitchSession}
+                />
+              </div>
             )}
 
             {/* Text input embedded at bottom */}
@@ -1066,20 +1050,7 @@ export default function App() {
               />
             )}
           </div>
-          <div className="flex-1 min-h-[160px]">
-            {isLoading ? (
-              <LoadingSkeleton label="LEMON VIRTUAL PITCHES" />
-            ) : (
-              <PitchReviewPanel
-                session={pitchSession}
-                pendingPitches={(dashboardData?.lemaPitches ?? []).filter(p => p.status === 'in_review')}
-                onStartReview={() => startPitchReview(dashboardData?.lemaPitches ?? [])}
-                onVerdict={handlePitchVerdict}
-                onAbort={abortPitchSession}
-              />
-            )}
-          </div>
-          <div className="flex-1 min-h-[90px]">
+          <div className="flex-1 min-h-[120px]">
             {isLoading ? (
               <LoadingSkeleton label="TODAY'S AGENDA" />
             ) : (

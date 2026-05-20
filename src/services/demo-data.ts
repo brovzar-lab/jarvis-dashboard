@@ -48,10 +48,31 @@ const DEMO_WAITING: Issue[] = [
 ];
 
 const DEMO_PITCHES: Issue[] = [
-  { id: 'p1', identifier: 'LEMA-101', title: 'Series A pitch deck — Accel Partners', status: 'in_progress', priority: 'critical', updatedAt: new Date(Date.now() - 1800000).toISOString(), companyId: 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8' },
-  { id: 'p2', identifier: 'LEMA-98', title: 'Demo prep — Y Combinator follow-up call', status: 'todo', priority: 'high', updatedAt: new Date(Date.now() - 7200000).toISOString(), companyId: 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8' },
-  { id: 'p3', identifier: 'LEMA-95', title: 'Partner intro deck — Sequoia intro via Billy', status: 'in_review', priority: 'high', updatedAt: new Date(Date.now() - 10800000).toISOString(), companyId: 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8' },
-  { id: 'p4', identifier: 'LEMA-90', title: 'Due diligence data room setup', status: 'blocked', priority: 'medium', updatedAt: new Date(Date.now() - 21600000).toISOString(), companyId: 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8' },
+  {
+    id: 'p1', identifier: '', title: 'El Presidente', status: 'in_review', priority: 'high',
+    updatedAt: new Date(Date.now() - 3600000).toISOString(), companyId: 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8',
+    description: 'A disgraced Mexican senator uncovers a billion-peso corruption ring inside his own party and realizes he is the last honest man in the room. 8-episode limited series. Tone: Narcos meets House of Cards. Comps: El Chapo, El Candidato, The Wire.',
+  },
+  {
+    id: 'p2', identifier: '', title: 'Fuego Negro', status: 'in_review', priority: 'high',
+    updatedAt: new Date(Date.now() - 7200000).toISOString(), companyId: 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8',
+    description: 'Feature film. A wildfire photographer embedded in a cartel-controlled Sierra Madre discovers the fires are being set deliberately. Race against time in stunning landscape. Tone: Fire of Love meets No Country for Old Men. Comps: Sicario, Wind River.',
+  },
+  {
+    id: 'p3', identifier: '', title: 'Las Hijas del Desierto', status: 'in_review', priority: 'medium',
+    updatedAt: new Date(Date.now() - 10800000).toISOString(), companyId: 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8',
+    description: 'Three sisters in Ciudad Juárez inherit their father\'s cartel empire and have 30 days to dismantle it before the DEA closes in. 6-episode limited series. Tone: Succession meets Ozark with a Mexican female lens. Comps: Ozark, Maid, Bad Sisters.',
+  },
+  {
+    id: 'p4', identifier: '', title: 'Astro', status: 'in_review', priority: 'medium',
+    updatedAt: new Date(Date.now() - 14400000).toISOString(), companyId: 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8',
+    description: 'Feature film. Mexico\'s first amateur astronaut trains in secret to reach the ISS and discovers his mission is cover for a geopolitical deal he wants no part of. Tone: First Man meets Argo. Commercial adventure with real stakes and national pride engine.',
+  },
+  {
+    id: 'p5', identifier: '', title: 'La Bestia', status: 'in_review', priority: 'low',
+    updatedAt: new Date(Date.now() - 21600000).toISOString(), companyId: 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8',
+    description: 'Feature film. A Central American boy rides the infamous freight train north toward the US border and befriends a veteran migrant smuggler with a dark past. Tone: Roma meets Beasts of the Southern Wild. Awards-season drama with crossover commercial potential.',
+  },
 ];
 
 export const DEMO_DATA: DashboardData = {
