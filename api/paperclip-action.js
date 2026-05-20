@@ -51,6 +51,8 @@ export default async function handler(req, res) {
       const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
       const allowed = {};
       if (patch.status) allowed.status = patch.status;
+      if (patch.billyVerdict !== undefined) allowed.billyVerdict = patch.billyVerdict;
+      if (patch.queueStatus !== undefined) allowed.queueStatus = patch.queueStatus;
       upstream = await fetch(`${baseUrl}/api/projects/${projectId}`, {
         method: 'PATCH',
         headers,

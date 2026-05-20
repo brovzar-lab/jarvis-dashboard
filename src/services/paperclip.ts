@@ -122,9 +122,10 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     updatedAt: item.updatedAt ?? new Date().toISOString(),
   }));
 
-  // Fetch LEMA pitches (projects) if LEMA is a known company.
-  // Pitches in LEMA are Paperclip projects, not issues.
-  // Active = queueStatus of awaiting_review (needs decision) or decided (greenlit).
+  // Fetch LEMA pitches (projects) from the Development Gate board.
+  // Board URL: /LEMA/boards/development-gate  →  projects where board === 'development_gate'.
+  // Pitches awaiting Billy's verdict have billyVerdict === null.
+  // Each project has structured pitch fields: pitchSynopsis, genre, format, comps, etc.
   let lemaPitches: Issue[] = [];
   if (companyIds.includes(LEMA_COMPANY_ID)) {
     try {
@@ -132,29 +133,42 @@ export async function fetchDashboardData(): Promise<DashboardData> {
         id: string;
         name: string;
         status: string;
+        board?: string | null;
+        billyVerdict?: string | null;
         queueStatus?: string | null;
-        devStage?: string;
+        format?: string | null;
+        genre?: string | null;
+        pitchSynopsis?: string | null;
+        comps?: string | null;
         description?: string | null;
       }
-      const projectsRaw = await apiGet<unknown>(`/api/companies/${LEMA_COMPANY_ID}/projects?limit=80`).catch(() => null);
+      const projectsRaw = await apiGet<unknown>(`/api/companies/${LEMA_COMPANY_ID}/projects?limit=200`).catch(() => null);
       if (projectsRaw) {
         const projects = extractArray<LemaProject>(projectsRaw, 'projects', 'data', 'items');
         lemaPitches = projects
           .filter(p =>
-            p.status !== 'cancelled' &&
-            p.queueStatus !== 'archived' &&
-            (p.queueStatus === 'awaiting_review' || p.queueStatus === 'decided')
+            p.board === 'development_gate' &&
+            (p.billyVerdict == null || p.billyVerdict === '')
           )
-          .map(p => ({
-            id: p.id,
-            identifier: '',
-            title: p.name,
-            status: p.queueStatus === 'decided' ? 'in_progress' : 'in_review',
-            priority: 'medium',
-            updatedAt: new Date().toISOString(),
-            companyId: LEMA_COMPANY_ID,
-            description: p.description ?? undefined,
-          }));
+          .map(p => {
+            // Build a rich description JARVIS can read aloud.
+            // Include format so film/TV detection works via keyword matching.
+            const parts: string[] = [];
+            if (p.format) parts.push(`Format: ${p.format}.`);
+            if (p.genre) parts.push(`Genre: ${p.genre}.`);
+            if (p.pitchSynopsis) parts.push(p.pitchSynopsis.slice(0, 500));
+            if (p.comps) parts.push(`Comps: ${p.comps.slice(0, 150)}`);
+            return {
+              id: p.id,
+              identifier: '',
+              title: p.name,
+              status: 'in_review' as const,
+              priority: 'medium' as const,
+              updatedAt: new Date().toISOString(),
+              companyId: LEMA_COMPANY_ID,
+              description: parts.length > 0 ? parts.join(' ') : (p.description ?? undefined),
+            };
+          });
       }
     } catch {
       // silently degrade — pitches panel will show empty state
@@ -372,16 +386,14 @@ export async function executePitchVerdict(
   projectId: string,
   verdict: 'develop' | 'vault' | 'kill',
 ): Promise<void> {
-  // LEMA pitches are Paperclip projects — use patch_project, not patch_issue
-  const statusMap: Record<string, string> = {
-    develop: 'active',
-    vault: 'paused',
-    kill: 'cancelled',
-  };
-  const commentMap: Record<string, string> = {
-    develop: `Greenlighted by Billy via JARVIS — ${new Date().toISOString()}`,
-    vault: `Vaulted by Billy via JARVIS — ${new Date().toISOString()}`,
-    kill: `Killed by Billy via JARVIS — ${new Date().toISOString()}`,
+  // LEMA pitches are Paperclip projects.
+  // Verdict is stored in billyVerdict field; queueStatus archives or decides the pitch.
+  // billyVerdict values: 'approve' | 'reject' | 'vault'
+  // queueStatus values: 'awaiting_review' | 'decided' | 'archived'
+  const verdictMap: Record<string, { billyVerdict: string; queueStatus: string }> = {
+    develop: { billyVerdict: 'approve', queueStatus: 'decided' },
+    vault:   { billyVerdict: 'vault',   queueStatus: 'archived' },
+    kill:    { billyVerdict: 'reject',  queueStatus: 'archived' },
   };
 
   const post = (action: string, params: Record<string, unknown>) =>
@@ -391,7 +403,9 @@ export async function executePitchVerdict(
       body: JSON.stringify({ action, params, companyId: LEMA_COMPANY_ID }),
     });
 
-  await post('patch_project', { projectId, status: statusMap[verdict] });
+  await post('patch_project', { projectId, ...verdictMap[verdict] });
   // Best-effort comment — projects may not support the issues comment endpoint
-  await post('add_comment', { issueId: projectId, body: commentMap[verdict] }).catch(() => {});
+  const ts = new Date().toISOString();
+  const labels = { develop: 'Greenlighted', vault: 'Vaulted', kill: 'Killed' };
+  await post('add_comment', { issueId: projectId, body: `${labels[verdict]} by Billy via JARVIS — ${ts}` }).catch(() => {});
 }

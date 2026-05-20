@@ -50,7 +50,7 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
     const cached = docCacheRef.current.get(issue.id);
     if (cached) return cached;
 
-    let synopsis = issue.description?.slice(0, 350) ?? '';
+    let synopsis = issue.description?.slice(0, 600) ?? '';
     let tone = '';
     let comps = '';
 
