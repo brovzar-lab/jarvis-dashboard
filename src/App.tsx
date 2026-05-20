@@ -7,6 +7,7 @@ import { EmailPanel } from './components/EmailPanel';
 import { CalendarPanel } from './components/CalendarPanel';
 import { ObsidianPanel } from './components/ObsidianPanel';
 import { RightIssuesTabs } from './components/RightIssuesTabs';
+import { PitchCarousel } from './components/PitchCarousel';
 import { AgendaPanel } from './components/AgendaPanel';
 import { PitchesPanel } from './components/PitchesPanel';
 import { ConversationHistory } from './components/ConversationHistory';
@@ -899,6 +900,16 @@ export default function App() {
               )}
             </div>
 
+            {/* Lemon Virtual Pitches carousel — swipe left/right, DEVELOP/VAULT/KILL */}
+            {dashboardData && (dashboardData.lemaPitches?.length ?? 0) > 0 && (
+              <PitchCarousel
+                issues={dashboardData.lemaPitches ?? []}
+                onHearPitch={handleHearPitch}
+                playingPitchId={playingPitchId}
+                onRefresh={refreshDashboard}
+              />
+            )}
+
             {/* Text input embedded at bottom */}
             <div className="flex-shrink-0" style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
               <TextInput onSubmit={handleTextSubmit} disabled={isProcessingRef.current} />
@@ -939,11 +950,7 @@ export default function App() {
                 lastUpdated={lastUpdated}
                 onAction={handleTextSubmit}
                 contextCard={contextCard}
-                surfacedIssues={[
-                  ...(dashboardData?.waitingOnMeIssues ?? []).slice(0, 4),
-                  ...(dashboardData?.inReviewIssues ?? []).slice(0, 3),
-                ].slice(0, 7)}
-                onRefresh={refreshDashboard}
+                obsidianNotes={obsidianNotes.slice(0, 8)}
               />
             ) : leftTab === 'agents' ? (
               isLoading ? (
@@ -1169,78 +1176,43 @@ function ContextCardDisplay({ card }: { card: ContextCard }) {
   );
 }
 
-const PRIORITY_COLORS: Record<string, string> = {
-  critical: '#ff4444',
-  high: '#ff8800',
-  medium: '#00d4ff',
-  low: '#2a5f80',
-};
-
-function ActionQueueItem({ issue, onAction, onDismiss }: {
-  issue: Issue;
+function ObsidianNoteItem({ note, onAction }: {
+  note: ObsidianNote;
   onAction: (text: string) => void;
-  onDismiss: (id: string) => void;
 }) {
-  const cid = issue.companyId ?? getCompanyId();
-  const { execute, isPending } = useCardAction(issue.id, cid, () => {});
   return (
     <motion.div
       initial={{ opacity: 0, x: -6 }}
       animate={{ opacity: 1, x: 0 }}
       className="rounded p-2"
-      style={{ background: 'rgba(0,212,255,0.03)', border: '1px solid rgba(0,212,255,0.1)' }}
+      style={{ background: 'rgba(168,85,247,0.04)', border: '1px solid rgba(168,85,247,0.14)' }}
     >
-      <div className="flex items-center justify-between gap-1 mb-1.5">
-        <span className="font-mono" style={{ color: '#00d4ff', opacity: 0.75, fontSize: '0.62rem' }}>
-          {issue.identifier}
-        </span>
-        <span
-          className="tracking-wider px-1 rounded"
-          style={{
-            color: PRIORITY_COLORS[issue.priority] ?? '#2a5f80',
-            background: `${PRIORITY_COLORS[issue.priority] ?? '#2a5f80'}18`,
-            border: `1px solid ${PRIORITY_COLORS[issue.priority] ?? '#2a5f80'}44`,
-            fontSize: '8px',
-          }}
-        >
-          {issue.priority.toUpperCase()}
-        </span>
-      </div>
-      <div className="leading-snug mb-2" style={{ color: '#7ab8d4', fontSize: '0.75rem', lineHeight: 1.45 }}>
-        {issue.title}
-      </div>
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <div className="font-mono leading-snug flex-1" style={{ color: '#c084fc', fontSize: '0.68rem', lineHeight: 1.35 }}>
+          {note.title}
+        </div>
         <button
-          onClick={() => onAction(`Tell me about ${issue.identifier}: ${issue.title}`)}
-          className="font-mono tracking-widest px-1.5 py-0.5 rounded transition-opacity hover:opacity-100 opacity-70"
-          style={{ color: '#00d4ff', border: '1px solid rgba(0,212,255,0.3)', fontSize: '8px' }}
+          onClick={() => onAction(`Tell me about "${note.title}" from my Obsidian notes`)}
+          className="flex-shrink-0 tracking-widest transition-opacity opacity-55 hover:opacity-100"
+          style={{ color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)', fontSize: '7px', padding: '2px 6px', borderRadius: 2 }}
         >
-          OPEN
-        </button>
-        <button
-          onClick={() => execute('patch_issue', { status: 'done' })}
-          disabled={isPending}
-          className="font-mono tracking-widest px-1.5 py-0.5 rounded transition-opacity hover:opacity-100 opacity-70 disabled:opacity-30"
-          style={{ color: '#00ff88', border: '1px solid rgba(0,255,136,0.3)', fontSize: '8px' }}
-        >
-          APPROVE
-        </button>
-        <button
-          onClick={() => execute('patch_issue', { assigneeAgentId: null })}
-          disabled={isPending}
-          className="font-mono tracking-widest px-1.5 py-0.5 rounded transition-opacity hover:opacity-100 opacity-70 disabled:opacity-30"
-          style={{ color: '#ff8800', border: '1px solid rgba(255,136,0,0.3)', fontSize: '8px' }}
-        >
-          DELEGATE
-        </button>
-        <button
-          onClick={() => onDismiss(issue.id)}
-          className="font-mono tracking-widest px-1.5 py-0.5 rounded transition-opacity hover:opacity-100 opacity-50"
-          style={{ color: '#2a5f80', border: '1px solid rgba(42,95,128,0.3)', fontSize: '8px' }}
-        >
-          ✕
+          ASK
         </button>
       </div>
+      {note.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1">
+          {note.tags.slice(0, 3).map(tag => (
+            <span key={tag} style={{ color: '#7c3aed', background: 'rgba(124,58,237,0.12)', fontSize: '7px', padding: '1px 4px', borderRadius: 1 }}>
+              #{tag}
+            </span>
+          ))}
+        </div>
+      )}
+      {note.preview && (
+        <div style={{ color: '#5b21b6', fontSize: '0.68rem', lineHeight: 1.4 }}>
+          {note.preview.slice(0, 90)}{note.preview.length > 90 ? '…' : ''}
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -1251,15 +1223,12 @@ interface BriefingPanelProps {
   lastUpdated: Date;
   onAction: (text: string) => void;
   contextCard: ContextCard | null;
-  surfacedIssues?: Issue[];
-  onRefresh?: () => void;
+  obsidianNotes?: ObsidianNote[];
 }
 
-function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard, surfacedIssues = [], onRefresh }: BriefingPanelProps) {
+function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard, obsidianNotes = [] }: BriefingPanelProps) {
   const hour = new Date().getHours();
   const periodLabel = hour < 12 ? 'MORNING CHECK-IN' : hour < 17 ? 'MID-DAY CHECK-IN' : 'END-OF-DAY BRIEF';
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
-  const visibleIssues = surfacedIssues.filter(i => !dismissedIds.has(i.id));
 
   const CHIPS = [
     "What's blocking us?",
@@ -1297,7 +1266,7 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
         </AnimatePresence>
       </div>
 
-      {/* Scrollable feed: JARVIS action items + ACTION QUEUE */}
+      {/* Scrollable feed: JARVIS action items + Obsidian brain notes */}
       <div className="flex-1 overflow-y-auto min-h-0 py-2 space-y-3">
         {/* JARVIS-extracted action items */}
         {actionItems.length > 0 ? (
@@ -1352,33 +1321,19 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
           </div>
         )}
 
-        {/* ACTION QUEUE — live surfaced Paperclip issues */}
-        {visibleIssues.length > 0 && (
+        {/* BRAIN · RECENT — Obsidian vault notes */}
+        {obsidianNotes.length > 0 && (
           <div>
             <div
               className="tracking-widest mb-2 flex items-center gap-2"
-              style={{ color: '#1a4060', fontSize: '0.48rem', borderTop: '1px solid rgba(0,212,255,0.06)', paddingTop: 8 }}
+              style={{ color: '#3b1f6e', fontSize: '0.48rem', borderTop: '1px solid rgba(168,85,247,0.08)', paddingTop: 8 }}
             >
-              <span style={{ color: '#00d4ff', opacity: 0.5 }}>◆</span>
-              JARVIS · SURFACED
-              {onRefresh && (
-                <button
-                  onClick={onRefresh}
-                  className="ml-auto opacity-40 hover:opacity-80 transition-opacity"
-                  style={{ color: '#00d4ff', fontSize: '0.5rem' }}
-                >
-                  ↻
-                </button>
-              )}
+              <span style={{ color: '#a855f7', opacity: 0.6 }}>◈</span>
+              BRAIN · RECENT
             </div>
             <div className="space-y-1.5">
-              {visibleIssues.map(issue => (
-                <ActionQueueItem
-                  key={issue.id}
-                  issue={issue}
-                  onAction={onAction}
-                  onDismiss={id => setDismissedIds(prev => new Set([...prev, id]))}
-                />
+              {obsidianNotes.map(note => (
+                <ObsidianNoteItem key={note.path} note={note} onAction={onAction} />
               ))}
             </div>
           </div>
