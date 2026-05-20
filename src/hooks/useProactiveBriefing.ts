@@ -13,7 +13,7 @@ export function useProactiveBriefing(
   _hasExistingHistory: boolean,
   enabled: boolean,
   onBriefing: () => Promise<void>,
-): { isBriefing: boolean; skipBriefing: () => void; fireBriefingNow: () => boolean } {
+): { isBriefing: boolean; skipBriefing: () => void } {
   const calledRef = useRef(false);
   const onBriefingRef = useRef(onBriefing);
   onBriefingRef.current = onBriefing;
@@ -24,23 +24,6 @@ export function useProactiveBriefing(
     setIsBriefing(false);
   }, []);
 
-  // Called directly from the compliment callback for a zero-gap seamless handoff.
-  // Returns true if the briefing was fired, false if it was already done or data not ready.
-  const fireBriefingNow = useCallback((): boolean => {
-    if (calledRef.current) return false;
-    if (sessionStorage.getItem(SESSION_KEY) === todayKey()) return false;
-    if (!dashboardData) return false;
-
-    calledRef.current = true;
-    sessionStorage.setItem(SESSION_KEY, todayKey());
-
-    setIsBriefing(true);
-    onBriefingRef.current().finally(() => setIsBriefing(false));
-    return true;
-  }, [dashboardData]);
-
-  // Fallback path: fires when enabled flips true without a direct fireBriefingNow call
-  // (e.g. compliment was skipped, or no compliment on a revisit within the same day).
   useEffect(() => {
     if (!enabled) return;
     if (calledRef.current) return;
@@ -50,14 +33,9 @@ export function useProactiveBriefing(
     calledRef.current = true;
     sessionStorage.setItem(SESSION_KEY, todayKey());
 
-    const fireBriefing = () => {
-      setIsBriefing(true);
-      onBriefingRef.current().finally(() => setIsBriefing(false));
-    };
-
-    const timer = setTimeout(fireBriefing, 500);
-    return () => clearTimeout(timer);
+    setIsBriefing(true);
+    onBriefingRef.current().finally(() => setIsBriefing(false));
   }, [dashboardData, enabled]);
 
-  return { isBriefing, skipBriefing, fireBriefingNow };
+  return { isBriefing, skipBriefing };
 }

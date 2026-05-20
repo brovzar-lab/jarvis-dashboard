@@ -4,7 +4,7 @@ const THEME_URL =
   (import.meta.env.VITE_MORNING_THEME_URL as string | undefined)?.trim() ||
   '/morning-theme.mp3';
 
-const BASE_VOLUME = 0.30;
+const BASE_VOLUME = 0.42;
 
 let themeAudio: HTMLAudioElement | null = null;
 let started = false;

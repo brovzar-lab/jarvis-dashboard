@@ -21,8 +21,6 @@ import { useEmail } from './hooks/useEmail';
 import { useCalendar } from './hooks/useCalendar';
 import { useCostTracker } from './hooks/useCostTracker';
 import { useProactiveBriefing } from './hooks/useProactiveBriefing';
-import { useOpeningCompliment } from './hooks/useOpeningCompliment';
-import { generateOpeningCompliment } from './services/opening-compliment';
 import { useCardAction } from './hooks/useCardAction';
 import { askJarvis } from './services/jarvis-ai';
 import { askJarvisStreaming } from './services/jarvis-stream';
@@ -357,46 +355,8 @@ export default function App() {
     setActionItems(prev => prev.filter(a => a.id !== id));
   }, []);
 
-  // Refs for seamless compliment → briefing handoff without a React state cycle gap.
-  // fireBriefingNowRef is set after useProactiveBriefing and called at the end of the compliment.
-  // complimentSkippedRef prevents starting the briefing when the user presses a key to skip.
-  const fireBriefingNowRef = useRef<(() => boolean) | null>(null);
-  const complimentSkippedRef = useRef(false);
-
-  // Opening compliment — fires once per session (tab open/close cycle) before the briefing
-  const { isComplimenting, skipCompliment } = useOpeningCompliment(micReady, async () => {
-    complimentSkippedRef.current = false;
-    duckForTts();
-    const line = await generateOpeningCompliment();
-    addEntry('jarvis', line);
-    setOrbState('speaking');
-    await speak(line);
-    if (complimentSkippedRef.current) {
-      setOrbState('idle');
-      return;
-    }
-    // Chain directly into the briefing — zero gap, no idle flash
-    const fired = fireBriefingNowRef.current?.() ?? false;
-    if (!fired) {
-      // No briefing today or data not ready — unduck will fire via orbState effect
-      setOrbState('idle');
-    }
-    // If briefing fired, it owns orbState from here
-  });
-
-  // Any keypress skips the compliment while it's playing
-  useEffect(() => {
-    if (!isComplimenting) return;
-    const onKeyDown = () => {
-      complimentSkippedRef.current = true;
-      skipCompliment();
-    };
-    window.addEventListener('keydown', onKeyDown, { once: true });
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isComplimenting, skipCompliment]);
-
-  // Proactive briefing — fires once per calendar day, chained seamlessly after the compliment
-  const { isBriefing, skipBriefing, fireBriefingNow } = useProactiveBriefing(dashboardData, conversation.length > 0, !isComplimenting, async () => {
+  // Unified opening — hype compliment + briefing in one streaming call, once per calendar day
+  const { isBriefing, skipBriefing } = useProactiveBriefing(dashboardData, conversation.length > 0, micReady, async () => {
     if (!dashboardData) return;
 
     // Duck music immediately — don't wait for first TTS sentence to arrive
@@ -419,8 +379,8 @@ export default function App() {
     const briefContext = baseContext + emailContext + calendarContext;
 
     const hour = new Date().getHours();
-    const timePeriod = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
-    const briefQuery = `Deliver my proactive ${timePeriod} briefing. PRIORITY ORDER: (1) calendar — what meetings are coming up today and when; (2) email — any urgent or high-priority messages; (3) one concise sentence on Paperclip operational status only if critical. Do NOT enumerate agents, blocked counts, or issue lists — I can see those on the dashboard. Speak naturally as JARVIS. Under 90 words total. No questions.`;
+    const timePeriod = hour >= 22 || hour < 5 ? 'late night' : hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+    const briefQuery = `Open with ONE punchy hype-man greeting for Billy Rovzar, CEO of Lemon Studios Mexico City (1 sentence, 10-15 words, time of day: ${timePeriod}, profanity welcome, overconfident tone). Then continue DIRECTLY into his briefing — NO second greeting after the opener. PRIORITY ORDER: (1) calendar — upcoming meetings with times; (2) email — urgent or high-priority messages; (3) one sentence on critical Paperclip status only if needed. Do NOT list agents, blocked counts, or issue queues — Billy sees those on screen. Speak naturally as JARVIS. Under 110 words total. No questions.`;
 
     const briefEntryId = String(++entryCounter);
     let ttsChain = Promise.resolve();
@@ -460,7 +420,7 @@ export default function App() {
       await ttsChain;
     } catch {
       // Streaming failed — fall back to a simple greeting
-      const fallback = `Good ${timePeriod} sir. Your dashboard is ready.`;
+      const fallback = `Good ${timePeriod}, boss. Dashboard is live and ready.`;
       setConversation(prev => prev.map(e =>
         e.id === briefEntryId ? { ...e, text: fallback } : e
       ));
@@ -470,9 +430,6 @@ export default function App() {
 
     setOrbState('idle');
   });
-
-  // Wire up direct-fire ref so compliment callback can chain into briefing without a state cycle
-  fireBriefingNowRef.current = fireBriefingNow;
 
   // Any keypress skips the briefing while it's playing
   useEffect(() => {
