@@ -164,7 +164,9 @@ export default function App() {
   const [micReady, setMicReady] = useState(false);
   const [voiceParams, setVoiceParamsState] = useState<TtsVoiceParams>(() => getVoiceParams());
   const [voiceTunerOpen, setVoiceTunerOpen] = useState(false);
+  const [voiceTunerPos, setVoiceTunerPos] = useState({ top: 0, right: 0 });
   const voiceTunerRef = useRef<HTMLDivElement>(null);
+  const voiceButtonRef = useRef<HTMLButtonElement>(null);
   const startListeningRef = useRef<() => void>(() => {});
   const convHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
@@ -860,9 +862,16 @@ export default function App() {
             </button>
           )}
           {/* Voice parameter tuner */}
-          <div ref={voiceTunerRef} className="relative">
+          <div ref={voiceTunerRef}>
             <button
-              onClick={() => setVoiceTunerOpen(v => !v)}
+              ref={voiceButtonRef}
+              onClick={() => {
+                if (!voiceTunerOpen && voiceButtonRef.current) {
+                  const rect = voiceButtonRef.current.getBoundingClientRect();
+                  setVoiceTunerPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+                }
+                setVoiceTunerOpen(v => !v);
+              }}
               title="Tune JARVIS voice"
               className="flex items-center gap-1 px-2 py-1 tracking-widest transition-all hover:opacity-80"
               style={{
@@ -877,9 +886,12 @@ export default function App() {
             </button>
             {voiceTunerOpen && (
               <div
-                className="absolute right-0 mt-1 z-50 p-3 font-mono"
+                className="p-3 font-mono"
                 style={{
-                  top: '100%',
+                  position: 'fixed',
+                  top: voiceTunerPos.top,
+                  right: voiceTunerPos.right,
+                  zIndex: 9999,
                   background: '#020f1e',
                   border: '1px solid rgba(0,212,255,0.3)',
                   borderRadius: 4,
