@@ -239,18 +239,9 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Sequence on launch: 1) fullscreen  2) music  3) mic permission → briefing
+  // Sequence on launch: 1) music  2) mic permission → briefing
   const handleLaunch = useCallback(async () => {
-    // 1. Fullscreen — works because this runs inside a user gesture handler
-    const el = document.documentElement;
-    if (!document.fullscreenElement) {
-      if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
-      else if ((el as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen) {
-        (el as unknown as { webkitRequestFullscreen: () => void }).webkitRequestFullscreen();
-      }
-    }
-
-    // 2. Start music immediately (user gesture unlocks AudioContext)
+    // 1. Start music immediately (user gesture unlocks AudioContext)
     unlockAudio();
     tryStartMorningTheme();
     setLaunched(true);
