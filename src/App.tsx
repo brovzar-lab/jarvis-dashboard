@@ -22,6 +22,7 @@ import { useCalendar } from './hooks/useCalendar';
 import { useCostTracker } from './hooks/useCostTracker';
 import { useProactiveBriefing } from './hooks/useProactiveBriefing';
 import { useCardAction } from './hooks/useCardAction';
+import { TodoPanel } from './components/TodoPanel';
 import { askJarvis } from './services/jarvis-ai';
 import { askJarvisStreaming } from './services/jarvis-stream';
 import { addClaudeUsage } from './services/cost-tracker';
@@ -159,7 +160,11 @@ export default function App() {
   const [micReady, setMicReady] = useState(false);
   const [launched, setLaunched] = useState(false);
   const musicPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [voiceParams, setVoiceParamsState] = useState<TtsVoiceParams>(() => getVoiceParams());
+  const [voiceParams, setVoiceParamsState] = useState<TtsVoiceParams>(() => {
+    const p = getVoiceParams();
+    // Remove any persisted speed key from before it was removed
+    return { stability: p.stability, similarity_boost: p.similarity_boost, style: p.style };
+  });
   const [voiceTunerOpen, setVoiceTunerOpen] = useState(false);
   const [voiceTunerPos, setVoiceTunerPos] = useState({ top: 0, right: 0 });
   const voiceTunerRef = useRef<HTMLDivElement>(null);
@@ -940,7 +945,6 @@ STRICT RULES — FOLLOW EXACTLY:
                   VOICE · ELEVENLABS
                 </div>
                 {([
-                  { key: 'speed' as const, label: 'SPEED', min: 0.5, max: 2.0 },
                   { key: 'stability' as const, label: 'STABILITY', min: 0, max: 1 },
                   { key: 'similarity_boost' as const, label: 'SIMILARITY', min: 0, max: 1 },
                   { key: 'style' as const, label: 'STYLE', min: 0, max: 1 },
@@ -963,7 +967,7 @@ STRICT RULES — FOLLOW EXACTLY:
                 ))}
                 <button
                   onClick={() => {
-                    const defaults = { speed: 1.2, stability: 0.75, similarity_boost: 0.85, style: 0.3 };
+                    const defaults = { stability: 0.75, similarity_boost: 0.85, style: 0.3 };
                     setVoiceParamsState(defaults);
                     setVoiceParams(defaults);
                   }}
@@ -1111,13 +1115,16 @@ STRICT RULES — FOLLOW EXACTLY:
           </div>
         </div>
 
-        {/* Left: Email + Calendar — second on mobile (order-2), visual col 1 on desktop (md:order-1) */}
+        {/* Left: Email + Calendar + Notes — second on mobile (order-2), visual col 1 on desktop (md:order-1) */}
         <div className="md:flex-[38] min-h-0 desktop-agents-panel flex flex-col gap-3 order-2 md:order-1">
-          <div className="flex-[6] min-h-0 panel-border corner-decoration rounded overflow-hidden">
+          <div className="flex-[5] min-h-0 panel-border corner-decoration rounded overflow-hidden">
             <EmailPanel onAction={handleTextSubmit} />
           </div>
-          <div className="flex-[5] min-h-0 panel-border corner-decoration rounded overflow-hidden">
+          <div className="flex-[4] min-h-0 panel-border corner-decoration rounded overflow-hidden">
             <CalendarPanel onAction={handleTextSubmit} />
+          </div>
+          <div className="flex-[4] min-h-0 panel-border corner-decoration rounded overflow-hidden">
+            <TodoPanel />
           </div>
         </div>
 

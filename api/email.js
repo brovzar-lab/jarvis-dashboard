@@ -39,6 +39,7 @@ export default async function handler(req, res) {
         unread,
         inInbox,
         priority: unread && (msg.labelIds ?? []).includes('IMPORTANT') ? 'high' : 'normal',
+        link: `https://mail.google.com/mail/u/0/#all/${m.id}`,
       };
     }));
 

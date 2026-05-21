@@ -6,6 +6,7 @@ export interface Email {
   time: string;
   unread: boolean;
   priority?: 'high' | 'normal';
+  link?: string;
 }
 
 export interface CalendarEvent {

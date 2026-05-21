@@ -8,14 +8,12 @@ declare global {
 }
 
 export interface TtsVoiceParams {
-  speed: number;
   stability: number;
   similarity_boost: number;
   style: number;
 }
 
 const DEFAULT_VOICE_PARAMS: TtsVoiceParams = {
-  speed: 1.2,
   stability: 0.75,
   similarity_boost: 0.85,
   style: 0.3,
@@ -120,7 +118,7 @@ async function speakElevenLabs(text: string): Promise<void> {
       return new Promise<void>(resolve => {
         const source = audioContext!.createBufferSource();
         source.buffer = audioBuffer;
-        source.playbackRate.value = voiceParams.speed;
+        source.playbackRate.value = 1.0;
         source.connect(audioContext!.destination);
         currentSource = source;
         source.onended = () => {
@@ -190,7 +188,7 @@ async function speakBrowser(text: string): Promise<void> {
   return new Promise(resolve => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.pitch = 0.85;
-    utterance.rate = voiceParams.speed * 0.95;
+    utterance.rate = 0.95;
     utterance.volume = 1;
     if (preferred) utterance.voice = preferred;
 

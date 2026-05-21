@@ -20,6 +20,11 @@ export function EmailPanel({ onAction }: Props) {
     onAction(`Summarize this email and flag any action items: From: ${email.from} | Subject: ${email.subject} | "${email.preview}"`);
   };
 
+  const openEmail = (e: React.MouseEvent, link: string) => {
+    e.stopPropagation();
+    window.open(link, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="panel-border corner-decoration rounded p-4 h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
@@ -81,6 +86,16 @@ export function EmailPanel({ onAction }: Props) {
                   {email.from}
                 </span>
                 <span className="text-xs flex-shrink-0" style={{ color: '#1a4060', fontSize: '0.6rem' }}>{email.time}</span>
+                {email.link && (
+                  <button
+                    onClick={e => openEmail(e, email.link!)}
+                    title="Open in Gmail"
+                    className="flex-shrink-0 transition-opacity opacity-40 hover:opacity-100"
+                    style={{ color: '#00d4ff', border: '1px solid rgba(0,212,255,0.25)', fontSize: '6px', padding: '1px 4px', borderRadius: 2, background: 'transparent', lineHeight: 1.4 }}
+                  >
+                    ↗
+                  </button>
+                )}
               </div>
               <div className="text-xs truncate mb-0.5" style={{ color: email.unread ? '#4a8fa8' : '#1e3a50', paddingLeft: email.unread ? '1rem' : 0 }}>
                 {email.subject}
