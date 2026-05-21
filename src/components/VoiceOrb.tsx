@@ -153,22 +153,22 @@ export function VoiceOrb({ state, onClick, orbSize = 280, sessionCost }: Props) 
           <circle cx={cx} cy={cy} r={innerR * 1.7} fill={`url(#${bgGId})`} />
 
           {/* Outer dashed ring */}
-          <circle cx={cx} cy={cy} r={outerR} stroke={color} strokeWidth="0.5" strokeDasharray="1.5 8" opacity="0.30" />
+          <circle cx={cx} cy={cy} r={outerR} stroke={color} strokeWidth="0.7" strokeDasharray="1.5 8" opacity="0.45" />
 
           {/* Tick marks */}
-          {majorAngles.map(a => { const t = mkTick(a, outerR, 9); return <line key={a} {...t} stroke={color} strokeWidth="1.5" opacity="0.50" />; })}
-          {minorAngles.map(a => { const t = mkTick(a, outerR, 3.5); return <line key={a} {...t} stroke={color} strokeWidth="0.5" opacity="0.20" />; })}
+          {majorAngles.map(a => { const t = mkTick(a, outerR, 10); return <line key={a} {...t} stroke="#f0f9ff" strokeWidth="1.5" opacity="0.60" />; })}
+          {minorAngles.map(a => { const t = mkTick(a, outerR, 4); return <line key={a} {...t} stroke={color} strokeWidth="0.5" opacity="0.28" />; })}
 
           {/* Mid ring */}
-          <circle cx={cx} cy={cy} r={midR} stroke={color} strokeWidth="0.5" strokeDasharray="2.5 7" opacity="0.15" />
+          <circle cx={cx} cy={cy} r={midR} stroke={color} strokeWidth="0.5" strokeDasharray="2.5 7" opacity="0.22" />
 
-          {/* Inner ring */}
-          <circle cx={cx} cy={cy} r={innerR} stroke={color} strokeWidth="0.8" opacity="0.26" />
+          {/* Inner ring — visible frame around the clock/data zone */}
+          <circle cx={cx} cy={cy} r={innerR} stroke={color} strokeWidth="1.0" opacity="0.42" />
 
           {/* Cardinal dots on inner ring */}
           {[0, 90, 180, 270].map(a => {
             const rad = (a - 90) * Math.PI / 180;
-            return <circle key={a} cx={cx + Math.cos(rad) * innerR} cy={cy + Math.sin(rad) * innerR} r={2.2} fill={color} opacity="0.58" />;
+            return <circle key={a} cx={cx + Math.cos(rad) * innerR} cy={cy + Math.sin(rad) * innerR} r={2.5} fill="#f0f9ff" opacity="0.70" />;
           })}
 
           {/* Cross guides inner→outer */}
@@ -193,41 +193,61 @@ export function VoiceOrb({ state, onClick, orbSize = 280, sessionCost }: Props) 
           <circle cx={cx} cy={cy} r={coreR} fill={`url(#${gradId})`} filter={`url(#${glowFId})`} />
           <circle cx={cx} cy={cy} r={2.5} fill="white" opacity="0.94" />
 
-          {/* ── TEXT OVERLAYS ── */}
+          {/* ── TEXT OVERLAYS ── visual hierarchy: clock > JARVIS > state > corner data ── */}
 
-          {/* J.A.R.V.I.S. */}
+          {/* J.A.R.V.I.S. — secondary focal point, near-white */}
           <text x={cx} y={cy - outerR * 0.60} textAnchor="middle"
-            fill={color} fontSize={s * 0.056} fontFamily="'Courier New', monospace"
-            letterSpacing="5" opacity="0.56">J.A.R.V.I.S</text>
+            fill="#f0f9ff" fontSize={s * 0.065} fontFamily="'Courier New', monospace"
+            letterSpacing="6" opacity="0.88">J.A.R.V.I.S</text>
 
-          {/* Clock */}
-          <text x={cx} y={cy + s * 0.035} textAnchor="middle"
-            fill={color} fontSize={s * 0.088} fontFamily="'Courier New', monospace"
-            fontWeight="300" letterSpacing="1" opacity="0.60">{clock}</text>
+          {/* Thin separator rule below J.A.R.V.I.S. label */}
+          <line
+            x1={cx - outerR * 0.28} y1={cy - outerR * 0.50}
+            x2={cx + outerR * 0.28} y2={cy - outerR * 0.50}
+            stroke="#f0f9ff" strokeWidth="0.5" opacity="0.18"
+          />
 
-          {/* State */}
-          <text x={cx} y={cy + innerR * 1.38} textAnchor="middle"
-            fill={color} fontSize={s * 0.037} fontFamily="'Courier New', monospace"
-            letterSpacing="3" opacity="0.38">{label}</text>
+          {/* Clock — PRIMARY focal point, pure white, largest text */}
+          <text x={cx} y={cy + s * 0.038} textAnchor="middle"
+            fill="#ffffff" fontSize={s * 0.100} fontFamily="'Courier New', monospace"
+            fontWeight="300" letterSpacing="2" opacity="1.0">{clock}</text>
 
+          {/* State — secondary, colored for quick status identification */}
+          <text x={cx} y={cy + innerR * 1.40} textAnchor="middle"
+            fill={color} fontSize={s * 0.052} fontFamily="'Courier New', monospace"
+            letterSpacing="4" opacity="0.90">{label}</text>
+
+          {/* Thin separator rule above say-hint */}
           {state === 'idle' && (
-            <text x={cx} y={cy + innerR * 1.75} textAnchor="middle"
-              fill={color} fontSize={s * 0.029} fontFamily="'Courier New', monospace"
-              opacity="0.20">SAY "JARVIS" OR CLICK</text>
+            <line
+              x1={cx - outerR * 0.22} y1={cy + innerR * 1.60}
+              x2={cx + outerR * 0.22} y2={cy + innerR * 1.60}
+              stroke="#f0f9ff" strokeWidth="0.5" opacity="0.12"
+            />
           )}
 
-          {/* Corner data — quadrant positions inside the circle */}
-          <text x={qx1} y={qy1} textAnchor="middle" fill={color} fontSize={s * 0.035} fontFamily="'Courier New', monospace" opacity="0.30">COGNITIVE CORE</text>
-          <text x={qx1} y={qy2} textAnchor="middle" fill={color} fontSize={s * 0.029} fontFamily="'Courier New', monospace" opacity="0.20">v 14.0</text>
+          {state === 'idle' && (
+            <text x={cx} y={cy + innerR * 1.82} textAnchor="middle"
+              fill="#b8e4f5" fontSize={s * 0.040} fontFamily="'Courier New', monospace"
+              opacity="0.55">SAY "JARVIS" OR CLICK</text>
+          )}
 
-          <text x={qx2} y={qy1} textAnchor="middle" fill={color} fontSize={s * 0.035} fontFamily="'Courier New', monospace" opacity="0.30">STATE {state.toUpperCase()}</text>
-          <text x={qx2} y={qy2} textAnchor="middle" fill={color} fontSize={s * 0.029} fontFamily="'Courier New', monospace" opacity="0.20">NOMINAL</text>
+          {/* ── Corner data: label (dim) over value (bright white) ── */}
+          {/* Top-left */}
+          <text x={qx1} y={qy1} textAnchor="middle" fill="#7ec8e3" fontSize={s * 0.032} fontFamily="'Courier New', monospace" opacity="0.50">COGNITIVE CORE</text>
+          <text x={qx1} y={qy2} textAnchor="middle" fill="#f0f9ff" fontSize={s * 0.042} fontFamily="'Courier New', monospace" opacity="0.80">v 14.0</text>
 
-          <text x={qx1} y={qy3} textAnchor="middle" fill={color} fontSize={s * 0.029} fontFamily="'Courier New', monospace" opacity="0.20">UPLINK ● SECURE</text>
-          <text x={qx1} y={qy4} textAnchor="middle" fill={color} fontSize={s * 0.026} fontFamily="'Courier New', monospace" opacity="0.16">Claude 4.6</text>
+          {/* Top-right */}
+          <text x={qx2} y={qy1} textAnchor="middle" fill="#7ec8e3" fontSize={s * 0.032} fontFamily="'Courier New', monospace" opacity="0.50">STATE</text>
+          <text x={qx2} y={qy2} textAnchor="middle" fill={color} fontSize={s * 0.044} fontFamily="'Courier New', monospace" opacity="0.90">{state.toUpperCase()}</text>
 
-          <text x={qx2} y={qy3} textAnchor="middle" fill={color} fontSize={s * 0.029} fontFamily="'Courier New', monospace" opacity="0.20">SESSION {costStr}</text>
-          <text x={qx2} y={qy4} textAnchor="middle" fill={color} fontSize={s * 0.026} fontFamily="'Courier New', monospace" opacity="0.16">SYNC ■</text>
+          {/* Bottom-left */}
+          <text x={qx1} y={qy3} textAnchor="middle" fill="#7ec8e3" fontSize={s * 0.032} fontFamily="'Courier New', monospace" opacity="0.50">UPLINK</text>
+          <text x={qx1} y={qy4} textAnchor="middle" fill="#f0f9ff" fontSize={s * 0.038} fontFamily="'Courier New', monospace" opacity="0.75">● SECURE</text>
+
+          {/* Bottom-right */}
+          <text x={qx2} y={qy3} textAnchor="middle" fill="#7ec8e3" fontSize={s * 0.032} fontFamily="'Courier New', monospace" opacity="0.50">SESSION</text>
+          <text x={qx2} y={qy4} textAnchor="middle" fill="#f0f9ff" fontSize={s * 0.038} fontFamily="'Courier New', monospace" opacity="0.75">{costStr}</text>
         </svg>
       </div>
     </div>
