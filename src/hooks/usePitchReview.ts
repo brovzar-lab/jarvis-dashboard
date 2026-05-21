@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { speak, stopSpeaking } from '../services/tts';
-import { fetchPitchDocuments, executePitchVerdict, detectPitchMediaType, isDemoMode } from '../services/paperclip';
+import { fetchPitchDocuments, executePitchVerdict, detectPitchMediaType } from '../services/paperclip';
 import type { Issue, OrbState } from '../types';
 
 export type PitchStatus = 'idle' | 'fetching' | 'pitching' | 'awaiting_verdict' | 'executing' | 'summary';
@@ -55,9 +55,8 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
     let tone = '';
     let comps = '';
 
-    if (!isDemoMode) {
-      try {
-        const docs = await fetchPitchDocuments(issue.id);
+    try {
+      const docs = await fetchPitchDocuments(issue.id);
         for (const doc of docs) {
           const body = doc.body ?? '';
           if (!synopsis && body) synopsis = body.slice(0, 350);
@@ -69,7 +68,6 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
       } catch {
         // degrade gracefully
       }
-    }
 
     const opening = isFirst
       ? `Alright Billy, first one up. This one's called ${issue.title}. Here's the deal...`
@@ -156,11 +154,9 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
 
     const [, verdictOk] = await Promise.all([
       speak(confirmText),
-      isDemoMode
-        ? Promise.resolve(true)
-        : executePitchVerdict(issue.id, verdict)
-            .then(() => true)
-            .catch(err => { console.error('[handleVerdict] verdict failed:', err); return false; }),
+      executePitchVerdict(issue.id, verdict)
+        .then(() => true)
+        .catch(err => { console.error('[handleVerdict] verdict failed:', err); return false; }),
     ]);
 
     if (!verdictOk) {

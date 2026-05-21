@@ -2,14 +2,9 @@ import type { Agent, Issue, DashboardData } from '../types';
 import type { ObsidianNote } from './integrations';
 
 const BOARD_USER_ID = import.meta.env.VITE_BOARD_USER_ID || 'Ii0txDoen0NV1MLw20AKX79qv2cC6eR4';
-import { DEMO_DATA } from './demo-data';
 
 const COMPANY_ID_ENV = import.meta.env.VITE_PAPERCLIP_COMPANY_ID || '';
 const LEMA_COMPANY_ID = 'ff52ad91-250b-4d9d-a2ee-1d24b65ec3e8';
-
-export const isDemoMode =
-  !COMPANY_ID_ENV ||
-  COMPANY_ID_ENV === 'REPLACE_WITH_VALUE';
 
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`/api/paperclip?p=${encodeURIComponent(path)}`);
@@ -51,11 +46,6 @@ async function discoverCompanyIds(): Promise<string[]> {
 interface InboxItem { id: string; identifier: string; title: string; status: string; priority: string; updatedAt?: string }
 
 export async function fetchDashboardData(): Promise<DashboardData> {
-  if (isDemoMode) {
-    await new Promise(r => setTimeout(r, 600));
-    return DEMO_DATA;
-  }
-
   const companyIds = await discoverCompanyIds();
 
   // Fetch agents and issues from all companies in parallel

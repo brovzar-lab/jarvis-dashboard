@@ -26,7 +26,7 @@ import { TodoPanel } from './components/TodoPanel';
 import { askJarvis } from './services/jarvis-ai';
 import { askJarvisStreaming } from './services/jarvis-stream';
 import { addClaudeUsage } from './services/cost-tracker';
-import { buildJarvisContext, isDemoMode, getCompanyId } from './services/paperclip';
+import { buildJarvisContext, getCompanyId } from './services/paperclip';
 import { fetchObsidian, searchEmails, searchObsidian } from './services/integrations';
 import type { ObsidianNote } from './services/integrations';
 import { speak, stopSpeaking, unlockAudio, setVoiceParams, getVoiceParams } from './services/tts';
@@ -496,17 +496,6 @@ STRICT RULES — FOLLOW EXACTLY:
     pendingCommandRef.current = null;
     setConfirmCountdown(0);
     setIsExecuting(true);
-
-    if (isDemoMode) {
-      setIsExecuting(false);
-      const msg = 'Demo mode — action not executed, sir. Connect a live Paperclip workspace to enable command execution.';
-      addEntry('jarvis', msg);
-      setOrbState('speaking');
-      await speak(msg);
-      setOrbState('idle');
-      return;
-    }
-
     setOrbState('thinking');
     const result = await executeCommand(cmd, COMPANY_ID);
     setIsExecuting(false);
@@ -587,29 +576,22 @@ STRICT RULES — FOLLOW EXACTLY:
     // Intercept "save session" — write conversation to Obsidian instead of sending to Claude
     if (userText.trim().toLowerCase() === 'save session') {
       try {
-        if (isDemoMode) {
-          const msg = 'Demo mode — session not saved, sir.';
+        const saveRes = await fetch('/api/save-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: convHistoryRef.current.slice(-20) }),
+        });
+        if (saveRes.ok) {
+          const data = await saveRes.json() as { date?: string; time?: string };
+          const msg = `Session memory saved to Obsidian for ${data.date ?? 'today'} at ${data.time ?? 'now'}, sir.`;
           addEntry('jarvis', msg);
           setOrbState('speaking');
           await speak(msg);
         } else {
-          const saveRes = await fetch('/api/save-session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: convHistoryRef.current.slice(-20) }),
-          });
-          if (saveRes.ok) {
-            const data = await saveRes.json() as { date?: string; time?: string };
-            const msg = `Session memory saved to Obsidian for ${data.date ?? 'today'} at ${data.time ?? 'now'}, sir.`;
-            addEntry('jarvis', msg);
-            setOrbState('speaking');
-            await speak(msg);
-          } else {
-            const msg = 'Unable to save session — check Obsidian connectivity, sir.';
-            addEntry('jarvis', msg);
-            setOrbState('speaking');
-            await speak(msg);
-          }
+          const msg = 'Unable to save session — check Obsidian connectivity, sir.';
+          addEntry('jarvis', msg);
+          setOrbState('speaking');
+          await speak(msg);
         }
       } catch {
         const msg = 'Session save failed unexpectedly, sir.';
@@ -844,10 +826,6 @@ STRICT RULES — FOLLOW EXACTLY:
     {!launched && <LaunchScreen onLaunch={handleLaunch} />}
     <div className="min-h-screen flex flex-col" style={{ background: '#020b18', backgroundImage: 'linear-gradient(rgba(0,212,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.02) 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
       <div className="scanline" />
-
-      {isDemoMode && (
-        <div className="demo-badge tracking-widest">DEMO MODE</div>
-      )}
 
       {/* Command confirmation overlay */}
       <CommandConfirmation

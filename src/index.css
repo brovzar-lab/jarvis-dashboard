@@ -216,19 +216,6 @@ body {
 .priority-medium { color: #00d4ff; }
 .priority-low { color: #2a5f80; }
 
-.demo-badge {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  background: rgba(255, 136, 0, 0.15);
-  border: 1px solid rgba(255, 136, 0, 0.4);
-  color: #ff8800;
-  padding: 4px 10px;
-  font-size: 10px;
-  letter-spacing: 2px;
-  z-index: 999;
-}
-
 @media (min-width: 768px) {
   .desktop-convo-panel {
     max-height: calc(100vh - 430px);
