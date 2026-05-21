@@ -8,7 +8,7 @@ body {
   margin: 0;
   font-family: 'Courier New', 'Courier', monospace;
   background: #020b18;
-  color: #7ecfff;
+  color: #d0eeff;
   overflow-x: hidden;
 }
 
@@ -136,7 +136,7 @@ body {
 }
 
 .text-jarvis-dim {
-  color: #2a5f80;
+  color: #5098b8;
 }
 
 .glow-line {

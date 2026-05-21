@@ -1006,7 +1006,7 @@ STRICT RULES — FOLLOW EXACTLY:
                   animate={{ opacity: [1, 0.3, 1] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
                 />
-                <span className="text-xs tracking-widest" style={{ color: '#2a5f80', fontSize: '0.6rem' }}>WAKE</span>
+                <span className="text-xs tracking-widest" style={{ color: '#5098b8', fontSize: '0.6rem' }}>WAKE</span>
               </motion.div>
             )}
 
@@ -1030,7 +1030,7 @@ STRICT RULES — FOLLOW EXACTLY:
                     style={{ border: '1px dashed rgba(0,212,255,0.15)', borderRadius: 2 }}
                   >
                     <div className="text-xs font-bold" style={{ color: '#00d4ff', fontSize: '0.75rem' }}>{stat.value}</div>
-                    <div className="text-xs tracking-widest" style={{ color: '#1a3040', fontSize: '0.45rem' }}>{stat.label}</div>
+                    <div className="text-xs tracking-widest" style={{ color: '#5098b8', fontSize: '0.45rem' }}>{stat.label}</div>
                   </div>
                 ))}
               </div>
@@ -1044,7 +1044,6 @@ STRICT RULES — FOLLOW EXACTLY:
                 lastUpdated={lastUpdated}
                 onAction={handleTextSubmit}
                 contextCard={contextCard}
-                obsidianNotes={obsidianNotes.slice(0, 8)}
               />
             </div>
 
@@ -1232,7 +1231,7 @@ function TimePeriodIndicator() {
           key={p}
           className="px-2 py-0.5 text-xs tracking-widest transition-colors"
           style={{
-            color: p === period ? '#00d4ff' : '#1a3040',
+            color: p === period ? '#00d4ff' : '#3a6a8a',
             border: p === period ? '1px solid rgba(0,212,255,0.25)' : '1px solid transparent',
             fontSize: '0.55rem',
           }}
@@ -1361,10 +1360,9 @@ interface BriefingPanelProps {
   lastUpdated: Date;
   onAction: (text: string) => void;
   contextCard: ContextCard | null;
-  obsidianNotes?: ObsidianNote[];
 }
 
-function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard, obsidianNotes = [] }: BriefingPanelProps) {
+function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard }: BriefingPanelProps) {
   const hour = new Date().getHours();
   const periodLabel = hour < 12 ? 'MORNING CHECK-IN' : hour < 17 ? 'MID-DAY CHECK-IN' : 'END-OF-DAY BRIEF';
 
@@ -1390,7 +1388,7 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
           <span className="text-xs tracking-widest px-1.5 py-0.5" style={{ color: '#00d4ff', background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.15)', fontSize: '0.5rem' }}>
             ACTION ITEMS{actionItems.length > 0 ? ` · ${actionItems.length}` : ''}
           </span>
-          <span className="text-xs tracking-widest" style={{ color: '#1a3040', fontSize: '0.5rem' }}>
+          <span className="text-xs tracking-widest" style={{ color: '#5098b8', fontSize: '0.5rem' }}>
             {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
@@ -1404,9 +1402,8 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
         </AnimatePresence>
       </div>
 
-      {/* Scrollable feed: JARVIS action items + Obsidian brain notes */}
+      {/* Scrollable feed: JARVIS action items */}
       <div className="flex-1 overflow-y-auto min-h-0 py-2 space-y-3">
-        {/* JARVIS-extracted action items */}
         {actionItems.length > 0 ? (
           <div className="space-y-1.5">
             {actionItems.map((item, i) => (
@@ -1423,10 +1420,10 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
                   padding: '7px 9px',
                 }}
               >
-                <span style={{ color: '#1a5a80', fontSize: '0.55rem', marginTop: 3, flexShrink: 0 }}>▶</span>
+                <span style={{ color: '#5098b8', fontSize: '0.55rem', marginTop: 3, flexShrink: 0 }}>▶</span>
                 <div className="flex-1 min-w-0">
-                  <div style={{ color: '#a8d8f0', fontSize: '0.78rem', lineHeight: 1.55 }}>{item.text}</div>
-                  <div className="tracking-widest" style={{ color: '#0d2030', fontSize: '0.48rem', marginTop: 2 }}>
+                  <div style={{ color: '#d0eeff', fontSize: '0.78rem', lineHeight: 1.55 }}>{item.text}</div>
+                  <div className="tracking-widest" style={{ color: '#5098b8', fontSize: '0.48rem', marginTop: 2 }}>
                     {item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
@@ -1434,9 +1431,9 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
                   onClick={() => onDismissItem(item.id)}
                   title="Dismiss"
                   className="flex-shrink-0 transition-colors"
-                  style={{ color: '#1a4060', fontSize: '0.7rem', lineHeight: 1, padding: '1px 3px' }}
+                  style={{ color: '#5098b8', fontSize: '0.7rem', lineHeight: 1, padding: '1px 3px' }}
                   onMouseEnter={e => (e.currentTarget.style.color = '#00d4ff')}
-                  onMouseLeave={e => (e.currentTarget.style.color = '#1a4060')}
+                  onMouseLeave={e => (e.currentTarget.style.color = '#5098b8')}
                 >
                   ✓
                 </button>
@@ -1449,30 +1446,12 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
               animate={{ opacity: [0.3, 0.8, 0.3] }}
               transition={{ duration: 2.5, repeat: Infinity }}
               className="tracking-widest"
-              style={{ color: '#2a5f80', fontSize: '0.65rem' }}
+              style={{ color: '#5098b8', fontSize: '0.65rem' }}
             >
               AWAITING BRIEFING
             </motion.div>
-            <div className="leading-relaxed" style={{ color: '#1a3040', fontSize: '0.75rem', lineHeight: '1.7' }}>
+            <div className="leading-relaxed" style={{ color: '#b0dcf0', fontSize: '0.75rem', lineHeight: '1.7' }}>
               Click the orb or type a question.
-            </div>
-          </div>
-        )}
-
-        {/* BRAIN · RECENT — Obsidian vault notes */}
-        {obsidianNotes.length > 0 && (
-          <div>
-            <div
-              className="tracking-widest mb-2 flex items-center gap-2"
-              style={{ color: '#3b1f6e', fontSize: '0.48rem', borderTop: '1px solid rgba(168,85,247,0.08)', paddingTop: 8 }}
-            >
-              <span style={{ color: '#a855f7', opacity: 0.6 }}>◈</span>
-              BRAIN · RECENT
-            </div>
-            <div className="space-y-1.5">
-              {obsidianNotes.map(note => (
-                <ObsidianNoteItem key={note.path} note={note} onAction={onAction} />
-              ))}
             </div>
           </div>
         )}
@@ -1480,14 +1459,14 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
 
       {/* Quick-action chips */}
       <div className="flex-shrink-0 pt-2" style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
-        <div className="tracking-widest mb-1.5" style={{ color: '#1a3040', fontSize: '0.5rem' }}>QUICK ACTIONS</div>
+        <div className="tracking-widest mb-1.5" style={{ color: '#5098b8', fontSize: '0.5rem' }}>QUICK ACTIONS</div>
         <div className="flex flex-wrap gap-1.5">
           {CHIPS.map(chip => (
             <button
               key={chip}
               onClick={() => onAction(chip)}
               className="px-2 py-1 tracking-widest transition-all hover:opacity-80"
-              style={{ border: '1px solid rgba(0,212,255,0.2)', color: '#2a6080', background: 'transparent', fontSize: '0.55rem', borderRadius: 2 }}
+              style={{ border: '1px solid rgba(0,212,255,0.2)', color: '#8ac8e8', background: 'transparent', fontSize: '0.55rem', borderRadius: 2 }}
             >
               {chip}
             </button>
