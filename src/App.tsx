@@ -157,6 +157,8 @@ export default function App() {
   const [contextCard, setContextCard] = useState<ContextCard | null>(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [micReady, setMicReady] = useState(false);
+  const [launched, setLaunched] = useState(false);
+  const musicPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [voiceParams, setVoiceParamsState] = useState<TtsVoiceParams>(() => getVoiceParams());
   const [voiceTunerOpen, setVoiceTunerOpen] = useState(false);
   const [voiceTunerPos, setVoiceTunerPos] = useState({ top: 0, right: 0 });
@@ -232,51 +234,42 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Request fullscreen on mount. Requires a prior user gesture on most browsers, so we
-  // also retry on the first click/keydown. Silent fail on mobile (manifest handles it).
-  useEffect(() => {
+  // Sequence on launch: 1) fullscreen  2) music  3) mic permission → briefing
+  const handleLaunch = useCallback(async () => {
+    // 1. Fullscreen — works because this runs inside a user gesture handler
     const el = document.documentElement;
-    const tryFullscreen = () => {
-      if (document.fullscreenElement) return;
+    if (!document.fullscreenElement) {
       if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
       else if ((el as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen) {
         (el as unknown as { webkitRequestFullscreen: () => void }).webkitRequestFullscreen();
       }
-    };
-    tryFullscreen();
-    const onGesture = () => { tryFullscreen(); window.removeEventListener('click', onGesture); window.removeEventListener('keydown', onGesture); };
-    window.addEventListener('click', onGesture, { once: false });
-    window.addEventListener('keydown', onGesture, { once: false });
-    return () => { window.removeEventListener('click', onGesture); window.removeEventListener('keydown', onGesture); };
-  }, []);
-
-  // Pre-warm mic permission BEFORE starting music.
-  // Without this, SpeechRecognition.start() triggers the browser permission dialog
-  // mid-playback, which interrupts audio on Chrome. By requesting permission first,
-  // the dialog fires before music starts, and subsequent recognition.start() calls
-  // are silent (permission already granted).
-  useEffect(() => {
-    let pollInterval: ReturnType<typeof setInterval>;
-
-    async function initAudio() {
-      if (navigator.mediaDevices?.getUserMedia) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          stream.getTracks().forEach(t => t.stop());
-        } catch { /* permission denied — continue without mic */ }
-      }
-      // Mic permission resolved (granted or denied) — safe to start music
-      tryStartMorningTheme();
-      setMicReady(true);
-      pollInterval = setInterval(() => {
-        const playing = isMorningThemePlaying();
-        setMusicPlaying(playing);
-        if (!playing) clearInterval(pollInterval);
-      }, 1000);
     }
 
-    initAudio();
-    return () => { if (pollInterval) clearInterval(pollInterval); };
+    // 2. Start music immediately (user gesture unlocks AudioContext)
+    unlockAudio();
+    tryStartMorningTheme();
+    setLaunched(true);
+
+    // Poll music state
+    if (musicPollRef.current) clearInterval(musicPollRef.current);
+    musicPollRef.current = setInterval(() => {
+      const playing = isMorningThemePlaying();
+      setMusicPlaying(playing);
+      if (!playing) { clearInterval(musicPollRef.current!); musicPollRef.current = null; }
+    }, 1000);
+
+    // 3. Mic permission — async, after music starts; resolves before brief begins speaking
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+      } catch { /* denied — continue without mic */ }
+    }
+    setMicReady(true);
+  }, []);
+
+  useEffect(() => {
+    return () => { if (musicPollRef.current) clearInterval(musicPollRef.current); };
   }, []);
 
   // Load persistent memory context from Obsidian once on mount
@@ -842,6 +835,8 @@ STRICT RULES — FOLLOW EXACTLY:
   const currentOrbState: OrbState = isListening ? 'listening' : orbState;
 
   return (
+    <>
+    {!launched && <LaunchScreen onLaunch={handleLaunch} />}
     <div className="min-h-screen flex flex-col" style={{ background: '#020b18', backgroundImage: 'linear-gradient(rgba(0,212,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.02) 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
       <div className="scanline" />
 
@@ -1197,6 +1192,45 @@ STRICT RULES — FOLLOW EXACTLY:
         muted={micMuted}
         onToggleMute={() => setMicMuted(m => !m)}
       />
+    </div>
+    </>
+  );
+}
+
+function LaunchScreen({ onLaunch }: { onLaunch: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 flex flex-col items-center justify-center cursor-pointer select-none z-[9999]"
+      style={{ background: '#020b18', backgroundImage: 'linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px)', backgroundSize: '40px 40px' }}
+      onClick={onLaunch}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onLaunch(); }}
+      tabIndex={0}
+      role="button"
+      aria-label="Launch JARVIS"
+    >
+      <div className="scanline absolute inset-0 pointer-events-none" />
+      <div className="flex flex-col items-center gap-6 relative z-10">
+        <motion.div
+          animate={{ opacity: [0.6, 1, 0.6] }}
+          transition={{ duration: 3, repeat: Infinity }}
+          className="text-jarvis tracking-widest font-bold"
+          style={{ fontSize: 'clamp(2rem, 8vw, 4rem)', letterSpacing: '0.4em' }}
+        >
+          J.A.R.V.I.S
+        </motion.div>
+        <div className="tracking-widest text-center" style={{ color: '#1a4060', fontSize: 'clamp(0.55rem, 1.5vw, 0.7rem)', letterSpacing: '0.3em' }}>
+          EXECUTIVE AI SYSTEM · PAPERCLIP INTELLIGENCE PLATFORM
+        </div>
+        <div style={{ height: 1, width: 120, background: 'rgba(0,212,255,0.15)' }} />
+        <motion.div
+          animate={{ opacity: [0.3, 1, 0.3] }}
+          transition={{ duration: 1.8, repeat: Infinity }}
+          className="tracking-widest"
+          style={{ color: '#00d4ff', fontSize: 'clamp(0.55rem, 1.5vw, 0.7rem)', letterSpacing: '0.4em' }}
+        >
+          TAP TO INITIALIZE
+        </motion.div>
+      </div>
     </div>
   );
 }
