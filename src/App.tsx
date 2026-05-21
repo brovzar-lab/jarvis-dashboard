@@ -1041,60 +1041,31 @@ STRICT RULES — FOLLOW EXACTLY:
               </motion.div>
             )}
 
-            {/* Orb — centered, constrained height */}
-            <div className="flex-1 min-h-0 flex items-center justify-center relative" style={{ maxHeight: '28vh' }}>
-              <VoiceOrb state={currentOrbState} onClick={handleOrbClick} orbSize={200} />
+            {/* Orb — Avengers arc-reactor brain center */}
+            <div className="flex-1 min-h-0 flex items-center justify-center relative" style={{ maxHeight: '42vh' }}>
+              <VoiceOrb state={currentOrbState} onClick={handleOrbClick} orbSize={280} sessionCost={sessionCost} />
             </div>
 
-            {/* Below orb: label + large clock + state + stats */}
-            <div className="flex flex-col items-center pb-4 px-4 flex-shrink-0">
-              <div className="text-xs tracking-widest mb-1" style={{ color: '#1a4060', fontSize: '0.6rem', letterSpacing: '0.3em' }}>
-                J · A · R · V · I · S
+            {/* Stats row */}
+            {dashboardData && (
+              <div className="flex gap-2 px-4 pb-3 flex-shrink-0">
+                {[
+                  { label: 'AGENTS',  value: `${dashboardData.agents.length}` },
+                  { label: 'REVIEW',  value: `${dashboardData.inReviewIssues.length}` },
+                  { label: 'BLOCKED', value: `${dashboardData.blockedIssues.length}` },
+                  { label: 'QUEUE',   value: `${dashboardData.waitingOnMeIssues.length}` },
+                ].map(stat => (
+                  <div
+                    key={stat.label}
+                    className="flex-1 text-center py-1 px-1"
+                    style={{ border: '1px dashed rgba(0,212,255,0.15)', borderRadius: 2 }}
+                  >
+                    <div className="text-xs font-bold" style={{ color: '#00d4ff', fontSize: '0.75rem' }}>{stat.value}</div>
+                    <div className="text-xs tracking-widest" style={{ color: '#1a3040', fontSize: '0.45rem' }}>{stat.label}</div>
+                  </div>
+                ))}
               </div>
-              <LargeOrbClock />
-              <div className="flex items-center gap-2 mt-1 mb-4">
-                <motion.span
-                  key={currentOrbState}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-xs tracking-widest"
-                  style={{
-                    color: currentOrbState === 'idle' ? '#2a5f80'
-                      : currentOrbState === 'listening' ? '#00d4ff'
-                      : currentOrbState === 'thinking' ? '#fbbf24'
-                      : '#34d399',
-                    fontSize: '0.6rem',
-                  }}
-                >
-                  {currentOrbState.toUpperCase()}
-                </motion.span>
-                <span style={{ color: '#1a3040', fontSize: '0.6rem' }}>·</span>
-                <span className="text-xs tracking-widest" style={{ color: '#1a4060', fontSize: '0.6rem' }}>
-                  {!isSupported ? 'USE TEXT INPUT' : 'CLICK JARVIS'}
-                </span>
-              </div>
-
-              {/* Stats row */}
-              {dashboardData && (
-                <div className="flex gap-2 w-full max-w-xs">
-                  {[
-                    { label: 'AGENTS', value: `${dashboardData.agents.length}` },
-                    { label: 'REVIEW', value: `${dashboardData.inReviewIssues.length}` },
-                    { label: 'BLOCKED', value: `${dashboardData.blockedIssues.length}` },
-                    { label: 'QUEUE', value: `${dashboardData.waitingOnMeIssues.length}` },
-                  ].map(stat => (
-                    <div
-                      key={stat.label}
-                      className="flex-1 text-center py-1 px-1"
-                      style={{ border: '1px dashed rgba(0,212,255,0.15)', borderRadius: 2 }}
-                    >
-                      <div className="text-xs font-bold" style={{ color: '#00d4ff', fontSize: '0.75rem' }}>{stat.value}</div>
-                      <div className="text-xs tracking-widest" style={{ color: '#1a3040', fontSize: '0.45rem' }}>{stat.label}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Briefing — action items + quick actions, between orb and input */}
             <div className="flex-1 min-h-0 overflow-hidden" style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
