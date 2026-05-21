@@ -3,7 +3,7 @@
   "short_name": "JARVIS",
   "description": "Just A Rather Very Intelligent System",
   "start_url": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#020b18",
   "theme_color": "#00d4ff",
   "icons": [

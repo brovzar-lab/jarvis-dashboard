@@ -6,7 +6,8 @@ export async function askJarvisStreaming(
   conversationHistory: Array<{ role: string; content: string }>,
   onSentence: (sentence: string) => void,
   onDone: (fullText: string, usage: { input_tokens: number; output_tokens: number }) => void,
-  memoryContext?: string
+  memoryContext?: string,
+  maxTokens = 800,
 ): Promise<void> {
   const messages = [
     ...conversationHistory.slice(-6),
@@ -22,7 +23,7 @@ export async function askJarvisStreaming(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 800,
+      max_tokens: maxTokens,
       system,
       messages,
       stream: true,

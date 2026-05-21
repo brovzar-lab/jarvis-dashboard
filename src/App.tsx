@@ -232,6 +232,24 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Request fullscreen on mount. Requires a prior user gesture on most browsers, so we
+  // also retry on the first click/keydown. Silent fail on mobile (manifest handles it).
+  useEffect(() => {
+    const el = document.documentElement;
+    const tryFullscreen = () => {
+      if (document.fullscreenElement) return;
+      if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+      else if ((el as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen) {
+        (el as unknown as { webkitRequestFullscreen: () => void }).webkitRequestFullscreen();
+      }
+    };
+    tryFullscreen();
+    const onGesture = () => { tryFullscreen(); window.removeEventListener('click', onGesture); window.removeEventListener('keydown', onGesture); };
+    window.addEventListener('click', onGesture, { once: false });
+    window.addEventListener('keydown', onGesture, { once: false });
+    return () => { window.removeEventListener('click', onGesture); window.removeEventListener('keydown', onGesture); };
+  }, []);
+
   // Pre-warm mic permission BEFORE starting music.
   // Without this, SpeechRecognition.start() triggers the browser permission dialog
   // mid-playback, which interrupts audio on Chrome. By requesting permission first,
@@ -380,7 +398,27 @@ export default function App() {
 
     const hour = new Date().getHours();
     const timePeriod = hour >= 22 || hour < 5 ? 'late night' : hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
-    const briefQuery = `Open with ONE punchy hype-man greeting for Billy Rovzar, CEO of Lemon Studios Mexico City (1 sentence, 10-15 words, time of day: ${timePeriod}, profanity welcome, overconfident tone). Then continue DIRECTLY into his briefing — NO second greeting after the opener. PRIORITY ORDER: (1) calendar — upcoming meetings with times; (2) email — urgent or high-priority messages; (3) one sentence on critical Paperclip status only if needed. Do NOT list agents, blocked counts, or issue queues — Billy sees those on screen. Speak naturally as JARVIS. Under 110 words total. No questions.`;
+    const pitchCount = (dashboardData.lemaPitches ?? []).length;
+    const briefQuery = `Open with ONE punchy hype-man greeting for Billy Rovzar, CEO of Lemon Studios Mexico City (1 sentence, 10-15 words, time of day: ${timePeriod}, profanity welcome, overconfident tone). Then go DIRECTLY into a thorough, complete executive briefing — NO second greeting after the opener.
+
+Cover ALL of the following in order:
+
+1. CALENDAR: List every event today with exact times and who is involved. Flag anything that starts within the next 2 hours as urgent.
+
+2. EMAIL: Surface every high-priority or unread email that needs Billy's personal attention — who it's from, the subject, what decision or action is needed. Do not summarize — be specific.
+
+3. MY INBOX / WAITING ON BILLY: List every item in the MY INBOX/AGENDA section that needs Billy's decision, signature, or response. Name each one explicitly.
+
+4. BRAIN: Scan the Obsidian vault notes. Surface any time-sensitive items, open loops, or things Billy flagged as needing follow-up. Be specific about what needs action.
+
+5. PITCHES: End with exactly this, adjusted for the real count: "There are ${pitchCount} pitches in the development gate I'd like to walk you through when you have time."
+
+STRICT RULES — FOLLOW EXACTLY:
+- Do NOT mention agents, Paperclip agent names, agent status, blocked counts, issue queues, or any AI team activity. Billy sees all that on screen.
+- Use the NOW / NEXT / ORBIT structure from the briefing format guidelines.
+- Speak naturally as JARVIS. No markdown, no bullets — flowing spoken sentences.
+- This is the full morning brief: override the 150-word limit and be thorough. Target 280-350 words.
+- No questions at the end.`;
 
     const briefEntryId = String(++entryCounter);
     let ttsChain = Promise.resolve();
@@ -416,6 +454,7 @@ export default function App() {
           addActionItems(cleanText);
         },
         memoryContext || undefined,
+        1500,
       );
       await ttsChain;
     } catch {
