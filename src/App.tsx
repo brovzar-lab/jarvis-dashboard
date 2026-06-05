@@ -104,6 +104,14 @@ function loadActionItems(): ActionItem[] {
   return [];
 }
 
+const OUTPUT_PAD_RE = /\[OUTPUT_PAD\]([\s\S]*?)\[\/OUTPUT_PAD\]/;
+
+function parseOutputPad(text: string): { padContent: string | null; cleanText: string } {
+  const cleanText = text.replace(OUTPUT_PAD_RE, '').trim();
+  const match = OUTPUT_PAD_RE.exec(text);
+  return { padContent: match ? match[1].trim() : null, cleanText };
+}
+
 const CTX_CARD_RE = /\[CTX_CARD\]([\s\S]*?)\[\/CTX_CARD\]/;
 const VALID_KINDS: ContextCardKind[] = ['movie', 'weather', 'project', 'person', 'issue', 'generic'];
 
@@ -177,14 +185,23 @@ export default function App() {
   const lastActivityRef = useRef<number>(Date.now());
   // Abort flag for the briefing TTS chain — prevents double-voice when pitch review starts mid-briefing
   const briefingAbortRef = useRef(false);
-  // User corrections / ground truth — persisted in localStorage, injected into every query context
-  const [corrections, setCorrections] = useState<string>(() => {
+  // Accumulated user corrections — loaded from localStorage, injected into every query context.
+  // The textarea draft lives in BriefingPanel (local state). On save it appends here and clears.
+  const CORRECTIONS_KEY = 'jarvis_corrections';
+  const [savedCorrections, setSavedCorrections] = useState<string>(() => {
     try { return localStorage.getItem('jarvis_corrections') ?? ''; } catch { return ''; }
   });
-  const handleCorrectionsChange = useCallback((text: string) => {
-    setCorrections(text);
-    try { localStorage.setItem('jarvis_corrections', text); } catch {}
+  const handleCorrectionSave = useCallback((draft: string) => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    setSavedCorrections(prev => {
+      const updated = prev.trim() ? `${prev.trim()}\n${trimmed}` : trimmed;
+      try { localStorage.setItem(CORRECTIONS_KEY, updated); } catch {}
+      return updated;
+    });
   }, []);
+  // Output pad — JARVIS writes copyable content (emails, drafts, links) here via [OUTPUT_PAD] tag
+  const [outputPadContent, setOutputPadContent] = useState('');
 
   const updateActivity = () => { lastActivityRef.current = Date.now(); };
 
@@ -380,8 +397,8 @@ export default function App() {
     // Duck music immediately — don't wait for first TTS sentence to arrive
     duckForTts();
 
-    const correctionsContext = corrections.trim()
-      ? `\nUSER CORRECTIONS / GROUND TRUTH — treat as definitive facts:\n${corrections.trim()}`
+    const correctionsContext = savedCorrections.trim()
+      ? `\nUSER CORRECTIONS / GROUND TRUTH — treat as definitive facts:\n${savedCorrections.trim()}`
       : '';
 
     const baseContext = buildJarvisContext(dashboardData, COMPANY_ID, obsidianNotes);
@@ -442,6 +459,7 @@ STRICT RULES — FOLLOW EXACTLY:
         [],
         (sentence) => {
           if (sentence.includes('[CTX_CARD]') || sentence.includes('[/CTX_CARD]')) return;
+          if (sentence.includes('[OUTPUT_PAD]') || sentence.includes('[/OUTPUT_PAD]')) return;
           if (firstSentence) { firstSentence = false; setOrbState('speaking'); }
           setConversation(prev => prev.map(e =>
             e.id === briefEntryId ? { ...e, text: (e.text === '…' ? '' : e.text + ' ') + sentence } : e
@@ -666,8 +684,8 @@ STRICT RULES — FOLLOW EXACTLY:
         ).join('\n')
       : '';
 
-    const correctionsCtx = corrections.trim()
-      ? `\nUSER CORRECTIONS / GROUND TRUTH — treat as definitive facts:\n${corrections.trim()}`
+    const correctionsCtx = savedCorrections.trim()
+      ? `\nUSER CORRECTIONS / GROUND TRUTH — treat as definitive facts:\n${savedCorrections.trim()}`
       : '';
     const context = baseContext + emailContext + calendarContext + relevantEmailContext + relevantObsidianContext + correctionsCtx;
 
@@ -690,8 +708,9 @@ STRICT RULES — FOLLOW EXACTLY:
         context,
         convHistoryRef.current.slice(-8),
         (sentence) => {
-          if (commandDetected) return; // suppress TTS for command JSON
-          if (sentence.includes('[CTX_CARD]') || sentence.includes('[/CTX_CARD]')) return; // skip card block
+          if (commandDetected) return;
+          if (sentence.includes('[CTX_CARD]') || sentence.includes('[/CTX_CARD]')) return;
+          if (sentence.includes('[OUTPUT_PAD]') || sentence.includes('[/OUTPUT_PAD]')) return;
           if (firstSentence) {
             firstSentence = false;
             setOrbState('speaking');
@@ -718,8 +737,10 @@ STRICT RULES — FOLLOW EXACTLY:
             setOrbState('speaking');
             speak(command.confirmation + ' Say execute to proceed, or cancel.').then(() => setOrbState('idle'));
           } else {
-            const { card, cleanText } = parseContextCard(fullText);
+            const { card, cleanText: afterCard } = parseContextCard(fullText);
+            const { padContent, cleanText } = parseOutputPad(afterCard);
             if (card) setContextCard(card);
+            if (padContent) setOutputPadContent(padContent);
             setConversation(prev => prev.map(e =>
               e.id === jarvisEntryId ? { ...e, text: cleanText } : e
             ));
@@ -1087,8 +1108,7 @@ STRICT RULES — FOLLOW EXACTLY:
                 lastUpdated={lastUpdated}
                 onAction={handleTextSubmit}
                 contextCard={contextCard}
-                corrections={corrections}
-                onCorrectionsChange={handleCorrectionsChange}
+                onCorrectionSave={handleCorrectionSave}
               />
             </div>
 
@@ -1127,8 +1147,8 @@ STRICT RULES — FOLLOW EXACTLY:
               <LoadingSkeleton label="LEMON VIRTUAL PITCHES" />
             )}
           </div>
-          <div className="flex-[5] min-h-0 panel-border corner-decoration rounded overflow-hidden">
-            <CalendarPanel onAction={handleTextSubmit} />
+          <div className="flex-[5] min-h-0">
+            <OutputPad content={outputPadContent} onClear={() => setOutputPadContent('')} />
           </div>
         </div>
       </div>
@@ -1384,19 +1404,21 @@ interface BriefingPanelProps {
   lastUpdated: Date;
   onAction: (text: string) => void;
   contextCard: ContextCard | null;
-  corrections: string;
-  onCorrectionsChange: (text: string) => void;
+  onCorrectionSave: (draft: string) => void;
 }
 
-function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard, corrections, onCorrectionsChange }: BriefingPanelProps) {
+function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard, onCorrectionSave }: BriefingPanelProps) {
   const hour = new Date().getHours();
   const periodLabel = hour < 12 ? 'MORNING CHECK-IN' : hour < 17 ? 'MID-DAY CHECK-IN' : 'END-OF-DAY BRIEF';
+  const [correctionDraft, setCorrectionDraft] = useState('');
   const [correctionsSaved, setCorrectionsSaved] = useState(false);
   const saveCorrections = useCallback(() => {
-    onCorrectionsChange(corrections);
+    if (!correctionDraft.trim()) return;
+    onCorrectionSave(correctionDraft);
+    setCorrectionDraft(''); // clear after save
     setCorrectionsSaved(true);
     setTimeout(() => setCorrectionsSaved(false), 2000);
-  }, [corrections, onCorrectionsChange]);
+  }, [correctionDraft, onCorrectionSave]);
 
   const CHIPS = [
     "What's blocking us?",
@@ -1512,7 +1534,7 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
           <div className="flex items-center gap-1.5">
             <span style={{ color: '#fbbf24', fontSize: '0.5rem' }}>◈</span>
             <span className="tracking-widest" style={{ color: '#92703a', fontSize: '0.48rem' }}>
-              CORRECTIONS · GROUND TRUTH{corrections.trim() ? ' · ACTIVE' : ''}
+              CORRECTIONS · GROUND TRUTH
             </span>
           </div>
           <button
@@ -1531,15 +1553,15 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
           </button>
         </div>
         <textarea
-          value={corrections}
-          onChange={e => onCorrectionsChange(e.target.value)}
+          value={correctionDraft}
+          onChange={e => setCorrectionDraft(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) saveCorrections(); }}
-          placeholder={'Type facts JARVIS gets wrong. e.g. "The Lumina deal closed June 3rd." Cmd+Enter or SAVE to confirm.'}
+          placeholder={'Type a correction, e.g. "Lumina deal closed June 3rd" — hit SAVE and the box clears. Fact is injected into every future query.'}
           rows={3}
           className="w-full resize-none font-mono"
           style={{
             background: 'rgba(251,191,36,0.04)',
-            border: `1px solid ${corrections.trim() ? 'rgba(251,191,36,0.35)' : 'rgba(251,191,36,0.12)'}`,
+            border: `1px solid ${correctionDraft.trim() ? 'rgba(251,191,36,0.35)' : 'rgba(251,191,36,0.12)'}`,
             borderRadius: 3,
             color: '#e8d5a0',
             fontSize: '0.72rem',
@@ -1550,6 +1572,80 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
           onFocus={e => { e.currentTarget.rows = 5; }}
           onBlur={e => { e.currentTarget.rows = 3; }}
         />
+      </div>
+    </div>
+  );
+}
+
+function OutputPad({ content, onClear }: { content: string; onClear: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    if (!content) return;
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* clipboard not available */ }
+  }, [content]);
+
+  return (
+    <div className="panel-border corner-decoration rounded h-full flex flex-col" style={{ padding: '12px 14px' }}>
+      <div className="flex items-center justify-between mb-2 flex-shrink-0">
+        <motion.span
+          className="tracking-widest text-jarvis"
+          style={{ fontSize: '0.65rem' }}
+          animate={{ opacity: [0.7, 1, 0.7] }}
+          transition={{ duration: 4, repeat: Infinity }}
+        >
+          OUTPUT PAD
+        </motion.span>
+        {content && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopy}
+              className="tracking-widest transition-all"
+              style={{
+                color: copied ? '#34d399' : '#00d4ff',
+                border: `1px solid ${copied ? 'rgba(52,211,153,0.4)' : 'rgba(0,212,255,0.3)'}`,
+                background: copied ? 'rgba(52,211,153,0.08)' : 'rgba(0,212,255,0.05)',
+                fontSize: '0.45rem', padding: '2px 6px', borderRadius: 2,
+              }}
+            >
+              {copied ? '✓ COPIED' : 'COPY'}
+            </button>
+            <button
+              onClick={onClear}
+              className="tracking-widest transition-all hover:opacity-80"
+              style={{
+                color: '#ff4444', border: '1px solid rgba(255,68,68,0.3)',
+                background: 'rgba(255,68,68,0.05)',
+                fontSize: '0.45rem', padding: '2px 6px', borderRadius: 2,
+              }}
+            >
+              CLEAR
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="glow-line flex-shrink-0" />
+      <div className="flex-1 min-h-0 overflow-y-auto mt-3">
+        {content ? (
+          <pre
+            className="font-mono whitespace-pre-wrap select-all"
+            style={{ color: '#a8d8f0', fontSize: '0.78rem', lineHeight: 1.6 }}
+          >
+            {content}
+          </pre>
+        ) : (
+          <motion.div
+            animate={{ opacity: [0.3, 0.7, 0.3] }}
+            transition={{ duration: 3, repeat: Infinity }}
+            style={{ color: '#1a3040', fontSize: '0.65rem', lineHeight: 1.7 }}
+          >
+            Ask JARVIS to draft an email, write a message, or generate any content — it will appear here ready to copy.
+          </motion.div>
+        )}
       </div>
     </div>
   );
