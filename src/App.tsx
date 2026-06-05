@@ -1141,16 +1141,8 @@ STRICT RULES — FOLLOW EXACTLY:
               />
             )}
           </div>
-          <div className="flex-[3] min-h-0">
-            {isLoading ? (
-              <LoadingSkeleton label="AGENTS" />
-            ) : (
-              <AgentBehaviorsPanel
-                agents={dashboardData?.agents ?? []}
-                activeIssues={dashboardData?.activeIssues ?? []}
-                companyLabels={dashboardData?.companyLabels ?? {}}
-              />
-            )}
+          <div className="flex-[3] min-h-0 panel-border corner-decoration rounded overflow-hidden">
+            <CalendarPanel onAction={handleTextSubmit} />
           </div>
         </div>
       </div>
@@ -1413,6 +1405,12 @@ interface BriefingPanelProps {
 function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard, corrections, onCorrectionsChange }: BriefingPanelProps) {
   const hour = new Date().getHours();
   const periodLabel = hour < 12 ? 'MORNING CHECK-IN' : hour < 17 ? 'MID-DAY CHECK-IN' : 'END-OF-DAY BRIEF';
+  const [correctionsSaved, setCorrectionsSaved] = useState(false);
+  const saveCorrections = useCallback(() => {
+    onCorrectionsChange(corrections);
+    setCorrectionsSaved(true);
+    setTimeout(() => setCorrectionsSaved(false), 2000);
+  }, [corrections, onCorrectionsChange]);
 
   const CHIPS = [
     "What's blocking us?",
@@ -1524,16 +1522,33 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
 
       {/* Corrections / Ground Truth — typed corrections are injected into every JARVIS query */}
       <div className="flex-shrink-0 pt-2" style={{ borderTop: '1px solid rgba(251,191,36,0.12)', marginTop: 6 }}>
-        <div className="flex items-center gap-1.5 mb-1">
-          <span style={{ color: '#fbbf24', fontSize: '0.5rem' }}>◈</span>
-          <span className="tracking-widest" style={{ color: '#92703a', fontSize: '0.48rem' }}>
-            CORRECTIONS · GROUND TRUTH{corrections.trim() ? ' · ACTIVE' : ''}
-          </span>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-1.5">
+            <span style={{ color: '#fbbf24', fontSize: '0.5rem' }}>◈</span>
+            <span className="tracking-widest" style={{ color: '#92703a', fontSize: '0.48rem' }}>
+              CORRECTIONS · GROUND TRUTH{corrections.trim() ? ' · ACTIVE' : ''}
+            </span>
+          </div>
+          <button
+            onClick={saveCorrections}
+            className="tracking-widest transition-all"
+            style={{
+              color: correctionsSaved ? '#34d399' : '#fbbf24',
+              border: `1px solid ${correctionsSaved ? 'rgba(52,211,153,0.4)' : 'rgba(251,191,36,0.3)'}`,
+              background: correctionsSaved ? 'rgba(52,211,153,0.08)' : 'rgba(251,191,36,0.06)',
+              fontSize: '0.45rem',
+              padding: '2px 6px',
+              borderRadius: 2,
+            }}
+          >
+            {correctionsSaved ? '✓ SAVED' : 'SAVE'}
+          </button>
         </div>
         <textarea
           value={corrections}
           onChange={e => onCorrectionsChange(e.target.value)}
-          placeholder={'Type facts JARVIS gets wrong. e.g. "The Lumina deal closed June 3rd." Each line is injected as context on every query.'}
+          onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) saveCorrections(); }}
+          placeholder={'Type facts JARVIS gets wrong. e.g. "The Lumina deal closed June 3rd." Cmd+Enter or SAVE to confirm.'}
           rows={3}
           className="w-full resize-none font-mono"
           style={{
@@ -1547,7 +1562,7 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
             outline: 'none',
           }}
           onFocus={e => { e.currentTarget.rows = 5; }}
-          onBlur={e => { e.currentTarget.rows = corrections.trim() ? 3 : 3; }}
+          onBlur={e => { e.currentTarget.rows = 3; }}
         />
       </div>
     </div>

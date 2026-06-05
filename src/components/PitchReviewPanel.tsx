@@ -21,7 +21,7 @@ export function PitchReviewPanel({ session, pendingPitches, onStartReview, onVer
       <div className="flex items-center justify-between mb-2 flex-shrink-0">
         <motion.span
           className="tracking-widest text-jarvis"
-          style={{ fontSize: '0.6rem' }}
+          style={{ fontSize: '0.72rem' }}
           animate={{ opacity: [0.7, 1, 0.7] }}
           transition={{ duration: 4, repeat: Infinity }}
         >
@@ -55,43 +55,48 @@ export function PitchReviewPanel({ session, pendingPitches, onStartReview, onVer
               exit={{ opacity: 0 }}
               className="flex-1 flex flex-col justify-between"
             >
-              <div>
-                {pendingPitches.length > 0 ? (
-                  <>
-                    <div
-                      className="tracking-widest mb-1"
-                      style={{ color: '#2a5f80', fontSize: '0.55rem' }}
+              {pendingPitches.length === 0 ? (
+                <div className="tracking-widest" style={{ color: '#1a3040', fontSize: '0.65rem' }}>
+                  NO PITCHES PENDING
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="tracking-widest" style={{ color: '#2a5f80', fontSize: '0.55rem' }}>
+                      {pendingPitches.length} IN GATE
+                    </div>
+                    <button
+                      onClick={onStartReview}
+                      className="px-2 py-1 font-mono tracking-widest transition-all hover:opacity-90"
+                      style={{
+                        color: '#00d4ff',
+                        border: '1px solid rgba(0,212,255,0.4)',
+                        background: 'rgba(0,212,255,0.05)',
+                        fontSize: '0.55rem',
+                        borderRadius: 2,
+                      }}
                     >
-                      AWAITING REVIEW
-                    </div>
-                    <div style={{ color: '#00d4ff', fontSize: '1.6rem', fontWeight: 300, lineHeight: 1 }}>
-                      {pendingPitches.length}
-                    </div>
-                    <div className="tracking-widest mt-0.5" style={{ color: '#1a3040', fontSize: '0.5rem' }}>
-                      PROJECTS IN DEVELOPMENT GATE
-                    </div>
-                  </>
-                ) : (
-                  <div className="tracking-widest" style={{ color: '#1a3040', fontSize: '0.65rem' }}>
-                    NO PITCHES PENDING
+                      ▶ REVIEW
+                    </button>
                   </div>
-                )}
-              </div>
-              {pendingPitches.length > 0 && (
-                <button
-                  onClick={onStartReview}
-                  className="w-full py-2 font-mono tracking-widest transition-all hover:opacity-90"
-                  style={{
-                    color: '#00d4ff',
-                    border: '1px solid rgba(0,212,255,0.4)',
-                    background: 'rgba(0,212,255,0.05)',
-                    fontSize: '0.6rem',
-                    borderRadius: 3,
-                    marginTop: 12,
-                  }}
-                >
-                  ▶ START REVIEW
-                </button>
+                  {/* Scrollable pitch list */}
+                  <div className="overflow-y-auto space-y-1" style={{ maxHeight: 140 }}>
+                    {pendingPitches.map((pitch, i) => (
+                      <div
+                        key={pitch.id}
+                        className="flex items-start gap-2 px-2 py-1.5 rounded"
+                        style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.1)' }}
+                      >
+                        <span style={{ color: '#1a4060', fontSize: '0.5rem', marginTop: 2, flexShrink: 0 }}>
+                          {i + 1}.
+                        </span>
+                        <span style={{ color: '#8ac8e8', fontSize: '0.75rem', lineHeight: 1.35 }}>
+                          {pitch.title}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </motion.div>
           )}
