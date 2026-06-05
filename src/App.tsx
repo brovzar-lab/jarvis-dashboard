@@ -34,6 +34,12 @@ import type { TtsVoiceParams } from './services/tts';
 import { tryStartMorningTheme, stopMorningTheme, isMorningThemePlaying, duckForTts, unduckFromTts, duckForMic, unduckFromMic, fadeOutAndStop } from './services/morning-theme';
 import { parseCommandResponse, executeCommand } from './services/command-executor';
 import type { JarvisCommand } from './services/command-executor';
+import {
+  loadMemories, saveMemories, recall, formatForPrompt, markRecalled,
+  retain, retainCorrection, reflect, buildQueryContext,
+} from './services/memory';
+import { MemoryPanel } from './components/MemoryPanel';
+import type { Memory } from './types/memory';
 import type { OrbState, ConversationEntry, Issue, ActionItem, ContextCard, ContextCardKind } from './types';
 
 const COMPANY_ID = getCompanyId();
@@ -199,6 +205,9 @@ export default function App() {
       try { localStorage.setItem(CORRECTIONS_KEY, updated); } catch {}
       return updated;
     });
+    // Also save as a global preference memory for structured recall
+    retainCorrection(trimmed);
+    setBrainMemories(loadMemories());
   }, []);
   // Output pad — JARVIS writes copyable content (emails, drafts, links) here via [OUTPUT_PAD] tag
   const [outputPadContent, setOutputPadContent] = useState('');
@@ -258,6 +267,7 @@ export default function App() {
   const sessionCost = useCostTracker();
   const [obsidianNotes, setObsidianNotes] = useState<ObsidianNote[]>([]);
   const [memoryContext, setMemoryContext] = useState('');
+  const [brainMemories, setBrainMemories] = useState<Memory[]>(() => loadMemories());
 
   useEffect(() => {
     fetchObsidian().then(setObsidianNotes);
@@ -303,6 +313,12 @@ export default function App() {
         if (data?.memoryContext) setMemoryContext(data.memoryContext);
       })
       .catch(() => { /* Obsidian offline — degrade gracefully */ });
+  }, []);
+
+  // Run reflect() on mount to decay stale memories, then sync state
+  useEffect(() => {
+    reflect();
+    setBrainMemories(loadMemories());
   }, []);
   const [newIssueIds, setNewIssueIds] = useState<Set<string>>(new Set());
   const prevIssueIdsRef = useRef<Set<string>>(new Set());
@@ -389,6 +405,15 @@ export default function App() {
     setActionItems(prev => prev.filter(a => a.id !== id));
   }, []);
 
+  const handleClearMemories = useCallback((scope: 'session' | 'all') => {
+    const all = loadMemories();
+    const updated = scope === 'all'
+      ? []
+      : all.filter(m => m.scope !== 'session');
+    saveMemories(updated);
+    setBrainMemories(updated);
+  }, []);
+
   // Unified opening — hype compliment + briefing in one streaming call, once per calendar day
   const { isBriefing, skipBriefing } = useProactiveBriefing(dashboardData, conversation.length > 0, micReady, async () => {
     if (!dashboardData) return;
@@ -415,7 +440,13 @@ export default function App() {
         calendarEvents.map(e => `- [${e.past ? 'PAST' : 'UPCOMING'}] ${e.title} at ${e.time}${e.duration ? ` (${e.duration})` : ''}${e.attendees ? ` — ${e.attendees} attendees` : ''}`).join('\n')
       : '\nCALENDAR: No events loaded yet.';
 
-    const briefContext = baseContext + emailContext + calendarContext + correctionsContext;
+    // Inject top recalled memories from brain
+    const briefingCtx = buildQueryContext('morning briefing calendar email agenda');
+    const recalledBrief = recall(brainMemories, briefingCtx);
+    markRecalled(recalledBrief);
+    const brainContext = formatForPrompt(recalledBrief);
+
+    const briefContext = baseContext + emailContext + calendarContext + correctionsContext + (brainContext ? '\n\n' + brainContext : '');
 
     const hour = new Date().getHours();
     const timePeriod = hour >= 22 || hour < 5 ? 'late night' : hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
@@ -474,6 +505,9 @@ STRICT RULES — FOLLOW EXACTLY:
           ));
           convHistoryRef.current.push({ role: 'assistant', content: cleanText });
           addActionItems(cleanText);
+          // Auto-retain memories from briefing response (fire-and-forget)
+          retain(cleanText);
+          setTimeout(() => setBrainMemories(loadMemories()), 3000);
         },
         memoryContext || undefined,
         1500,
@@ -687,7 +721,14 @@ STRICT RULES — FOLLOW EXACTLY:
     const correctionsCtx = savedCorrections.trim()
       ? `\nUSER CORRECTIONS / GROUND TRUTH — treat as definitive facts:\n${savedCorrections.trim()}`
       : '';
-    const context = baseContext + emailContext + calendarContext + relevantEmailContext + relevantObsidianContext + correctionsCtx;
+
+    // Recall relevant memories from brain and inject into context
+    const queryCtx = buildQueryContext(userText);
+    const recalledMemories = recall(brainMemories, queryCtx);
+    markRecalled(recalledMemories);
+    const brainCtx = formatForPrompt(recalledMemories);
+
+    const context = baseContext + emailContext + calendarContext + relevantEmailContext + relevantObsidianContext + correctionsCtx + (brainCtx ? '\n\n' + brainCtx : '');
 
     const jarvisEntryId = String(++entryCounter);
     let ttsChain = Promise.resolve();
@@ -746,6 +787,9 @@ STRICT RULES — FOLLOW EXACTLY:
             ));
             convHistoryRef.current.push({ role: 'assistant', content: cleanText });
             addActionItems(cleanText);
+            // Auto-retain memories from this response (fire-and-forget)
+            retain(cleanText);
+            setTimeout(() => setBrainMemories(loadMemories()), 3000);
           }
         },
         memoryContext || undefined
@@ -789,7 +833,7 @@ STRICT RULES — FOLLOW EXACTLY:
       isProcessingRef.current = false;
       if (!commandDetected) setOrbState('idle');
     }
-  }, [dashboardData, obsidianNotes, memoryContext, handleExecute, handleCancel, pitchSessionRef, startPitchReview, handlePitchVerdict, abortPitchSession, pitchCurrent, speakPitchDetail]);
+  }, [dashboardData, obsidianNotes, memoryContext, brainMemories, handleExecute, handleCancel, pitchSessionRef, startPitchReview, handlePitchVerdict, abortPitchSession, pitchCurrent, speakPitchDetail]);
 
   const { isListening, isSupported, startListening } = useSpeechRecognition(processQuery);
 
@@ -1132,7 +1176,7 @@ STRICT RULES — FOLLOW EXACTLY:
           </div>
         </div>
 
-        {/* Right: Pitches + Issues + Agents — visual col 3 on desktop */}
+        {/* Right: Pitches + Output + Brain — visual col 3 on desktop */}
         <div className="md:flex-[36] min-h-0 flex flex-col gap-3 desktop-side-panel order-3">
           <div className="flex-[4] min-h-0">
             {dashboardData ? (
@@ -1147,8 +1191,11 @@ STRICT RULES — FOLLOW EXACTLY:
               <LoadingSkeleton label="LEMON VIRTUAL PITCHES" />
             )}
           </div>
-          <div className="flex-[5] min-h-0">
+          <div className="flex-[4] min-h-0">
             <OutputPad content={outputPadContent} onClear={() => setOutputPadContent('')} />
+          </div>
+          <div className="flex-[4] min-h-0">
+            <MemoryPanel memories={brainMemories} onClear={handleClearMemories} />
           </div>
         </div>
       </div>
