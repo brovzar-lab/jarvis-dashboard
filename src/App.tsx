@@ -498,11 +498,16 @@ STRICT RULES — FOLLOW EXACTLY:
     setMusicPlaying(false);
   }, [skipBriefing]);
 
-  // Any keypress skips the briefing while it's playing
+  // Any keypress outside of an input/textarea skips the briefing while it's playing
   useEffect(() => {
     if (!isBriefing) return;
-    const onKeyDown = () => handleSkipBriefing();
-    window.addEventListener('keydown', onKeyDown, { once: true });
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return; // let the user type notes without stopping JARVIS
+      window.removeEventListener('keydown', onKeyDown);
+      void handleSkipBriefing();
+    };
+    window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isBriefing, handleSkipBriefing]);
 
@@ -1128,20 +1133,7 @@ STRICT RULES — FOLLOW EXACTLY:
               <LoadingSkeleton label="LEMON VIRTUAL PITCHES" />
             )}
           </div>
-          <div className="flex-[4] min-h-0">
-            {isLoading ? (
-              <LoadingSkeleton label="PENDING REVIEW" />
-            ) : (
-              <RightIssuesTabs
-                reviewIssues={dashboardData?.inReviewIssues ?? []}
-                blockedIssues={dashboardData?.blockedIssues ?? []}
-                waitingIssues={dashboardData?.waitingOnMeIssues ?? []}
-                onRefresh={refreshDashboard}
-                newIssueIds={newIssueIds}
-              />
-            )}
-          </div>
-          <div className="flex-[3] min-h-0 panel-border corner-decoration rounded overflow-hidden">
+          <div className="flex-[5] min-h-0 panel-border corner-decoration rounded overflow-hidden">
             <CalendarPanel onAction={handleTextSubmit} />
           </div>
         </div>
