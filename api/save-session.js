@@ -10,6 +10,31 @@
 import { isObsidianConfigured, obsidianGet, obsidianPut } from './_lib/obsidian-client.js';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || process.env.VITE_CLAUDE_API_KEY;
+const GITHUB_TOKEN = process.env.OBSIDIAN_GITHUB_TOKEN;
+const GITHUB_REPO = process.env.OBSIDIAN_GITHUB_REPO; // format: "owner/repo"
+
+// GitHub fallback: write vault file via GitHub Contents API when Obsidian REST is unreachable
+async function writeToGitHub(filePath, content) {
+  if (!GITHUB_TOKEN || !GITHUB_REPO) return false;
+  const encodedPath = filePath.split('/').map(s => encodeURIComponent(s)).join('/');
+  const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${encodedPath}`;
+  const headers = {
+    Authorization: `token ${GITHUB_TOKEN}`,
+    Accept: 'application/vnd.github.v3+json',
+    'Content-Type': 'application/json',
+  };
+  let sha;
+  try {
+    const getRes = await fetch(apiUrl, { headers });
+    if (getRes.ok) { const d = await getRes.json(); sha = d.sha; }
+  } catch {}
+  try {
+    const body = { message: `JARVIS: session memory ${filePath}`, content: Buffer.from(content).toString('base64') };
+    if (sha) body.sha = sha;
+    const putRes = await fetch(apiUrl, { method: 'PUT', headers, body: JSON.stringify(body) });
+    return putRes.ok || putRes.status === 201;
+  } catch { return false; }
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -87,10 +112,16 @@ export default async function handler(req, res) {
     ? existing.trimEnd() + entry
     : `# Session Memory — ${date}\n${entry}`;
 
-  const written = await obsidianPut(filePath, newContent);
+  let written = await obsidianPut(filePath, newContent);
+  let via = 'obsidian';
   if (!written) {
-    return res.status(502).json({ error: 'Failed to write session memory to Obsidian' });
+    // Obsidian REST API unreachable (e.g. local URL not exposed) — fall back to GitHub
+    written = await writeToGitHub(filePath, newContent);
+    via = 'github';
+  }
+  if (!written) {
+    return res.status(502).json({ error: 'Failed to write session memory — Obsidian REST and GitHub both failed' });
   }
 
-  return res.json({ ok: true, date, time });
+  return res.json({ ok: true, date, time, via });
 }

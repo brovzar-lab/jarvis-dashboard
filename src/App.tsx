@@ -175,6 +175,16 @@ export default function App() {
   const isProcessingRef = useRef(false);
   const initialHistoryRestoredRef = useRef(false);
   const lastActivityRef = useRef<number>(Date.now());
+  // Abort flag for the briefing TTS chain — prevents double-voice when pitch review starts mid-briefing
+  const briefingAbortRef = useRef(false);
+  // User corrections / ground truth — persisted in localStorage, injected into every query context
+  const [corrections, setCorrections] = useState<string>(() => {
+    try { return localStorage.getItem('jarvis_corrections') ?? ''; } catch { return ''; }
+  });
+  const handleCorrectionsChange = useCallback((text: string) => {
+    setCorrections(text);
+    try { localStorage.setItem('jarvis_corrections', text); } catch {}
+  }, []);
 
   const updateActivity = () => { lastActivityRef.current = Date.now(); };
 
@@ -366,8 +376,13 @@ export default function App() {
   const { isBriefing, skipBriefing } = useProactiveBriefing(dashboardData, conversation.length > 0, micReady, async () => {
     if (!dashboardData) return;
 
+    briefingAbortRef.current = false;
     // Duck music immediately — don't wait for first TTS sentence to arrive
     duckForTts();
+
+    const correctionsContext = corrections.trim()
+      ? `\nUSER CORRECTIONS / GROUND TRUTH — treat as definitive facts:\n${corrections.trim()}`
+      : '';
 
     const baseContext = buildJarvisContext(dashboardData, COMPANY_ID, obsidianNotes);
 
@@ -383,7 +398,7 @@ export default function App() {
         calendarEvents.map(e => `- [${e.past ? 'PAST' : 'UPCOMING'}] ${e.title} at ${e.time}${e.duration ? ` (${e.duration})` : ''}${e.attendees ? ` — ${e.attendees} attendees` : ''}`).join('\n')
       : '\nCALENDAR: No events loaded yet.';
 
-    const briefContext = baseContext + emailContext + calendarContext;
+    const briefContext = baseContext + emailContext + calendarContext + correctionsContext;
 
     const hour = new Date().getHours();
     const timePeriod = hour >= 22 || hour < 5 ? 'late night' : hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
@@ -431,7 +446,7 @@ STRICT RULES — FOLLOW EXACTLY:
           setConversation(prev => prev.map(e =>
             e.id === briefEntryId ? { ...e, text: (e.text === '…' ? '' : e.text + ' ') + sentence } : e
           ));
-          ttsChain = ttsChain.then(() => speak(sentence));
+          ttsChain = ttsChain.then(() => briefingAbortRef.current ? undefined : speak(sentence));
         },
         (fullText, usage) => {
           addClaudeUsage(usage.input_tokens, usage.output_tokens);
@@ -462,9 +477,24 @@ STRICT RULES — FOLLOW EXACTLY:
     setMusicPlaying(false);
   });
 
-  const handleSkipBriefing = useCallback(() => {
+  const BRIEFING_CLOSERS = [
+    "Alright, I'll shut up. Now go dominate.",
+    "Roger that, boss. Go crush it.",
+    "Got it. Carpet DM time — make it happen.",
+    "Copy. Now go get 'em.",
+    "Understood. Go make it happen.",
+    "On it. Now stop listening to me and go close something.",
+  ];
+
+  const handleSkipBriefing = useCallback(async () => {
+    briefingAbortRef.current = true;
     skipBriefing();
-    fadeOutAndStop(1500);
+    const closer = BRIEFING_CLOSERS[Math.floor(Math.random() * BRIEFING_CLOSERS.length)];
+    await new Promise<void>(r => setTimeout(r, 80));
+    setOrbState('speaking');
+    await speak(closer);
+    setOrbState('idle');
+    fadeOutAndStop(30000);
     setMusicPlaying(false);
   }, [skipBriefing]);
 
@@ -558,6 +588,7 @@ STRICT RULES — FOLLOW EXACTLY:
     {
       const normalized = userText.trim().toLowerCase();
       if (PITCH_TRIGGERS.some(t => normalized.includes(t))) {
+        briefingAbortRef.current = true; // stop any in-flight briefing TTS chain
         addEntry('user', userText);
         convHistoryRef.current.push({ role: 'user', content: userText });
         startPitchReview(dashboardData?.lemaPitches ?? []);
@@ -641,7 +672,10 @@ STRICT RULES — FOLLOW EXACTLY:
         ).join('\n')
       : '';
 
-    const context = baseContext + emailContext + calendarContext + relevantEmailContext + relevantObsidianContext;
+    const correctionsCtx = corrections.trim()
+      ? `\nUSER CORRECTIONS / GROUND TRUTH — treat as definitive facts:\n${corrections.trim()}`
+      : '';
+    const context = baseContext + emailContext + calendarContext + relevantEmailContext + relevantObsidianContext + correctionsCtx;
 
     const jarvisEntryId = String(++entryCounter);
     let ttsChain = Promise.resolve();
@@ -836,10 +870,10 @@ STRICT RULES — FOLLOW EXACTLY:
         onCancel={handleCancel}
       />
 
-      {/* Skip briefing button — visible as soon as briefing starts (music + voice) */}
+      {/* Stop Briefing button — visible as soon as briefing starts */}
       {isBriefing && (
         <button
-          onClick={handleSkipBriefing}
+          onClick={() => { void handleSkipBriefing(); }}
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 text-xs tracking-widest transition-all hover:opacity-100"
           style={{
             minHeight: 44,
@@ -849,7 +883,7 @@ STRICT RULES — FOLLOW EXACTLY:
             opacity: 0.85,
           }}
         >
-          ▶ LET'S GO
+          Stop Briefing
         </button>
       )}
 
@@ -1054,6 +1088,8 @@ STRICT RULES — FOLLOW EXACTLY:
                 lastUpdated={lastUpdated}
                 onAction={handleTextSubmit}
                 contextCard={contextCard}
+                corrections={corrections}
+                onCorrectionsChange={handleCorrectionsChange}
               />
             </div>
 
@@ -1370,9 +1406,11 @@ interface BriefingPanelProps {
   lastUpdated: Date;
   onAction: (text: string) => void;
   contextCard: ContextCard | null;
+  corrections: string;
+  onCorrectionsChange: (text: string) => void;
 }
 
-function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard }: BriefingPanelProps) {
+function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard, corrections, onCorrectionsChange }: BriefingPanelProps) {
   const hour = new Date().getHours();
   const periodLabel = hour < 12 ? 'MORNING CHECK-IN' : hour < 17 ? 'MID-DAY CHECK-IN' : 'END-OF-DAY BRIEF';
 
@@ -1482,6 +1520,35 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Corrections / Ground Truth — typed corrections are injected into every JARVIS query */}
+      <div className="flex-shrink-0 pt-2" style={{ borderTop: '1px solid rgba(251,191,36,0.12)', marginTop: 6 }}>
+        <div className="flex items-center gap-1.5 mb-1">
+          <span style={{ color: '#fbbf24', fontSize: '0.5rem' }}>◈</span>
+          <span className="tracking-widest" style={{ color: '#92703a', fontSize: '0.48rem' }}>
+            CORRECTIONS · GROUND TRUTH{corrections.trim() ? ' · ACTIVE' : ''}
+          </span>
+        </div>
+        <textarea
+          value={corrections}
+          onChange={e => onCorrectionsChange(e.target.value)}
+          placeholder={'Type facts JARVIS gets wrong. e.g. "The Lumina deal closed June 3rd." Each line is injected as context on every query.'}
+          rows={3}
+          className="w-full resize-none font-mono"
+          style={{
+            background: 'rgba(251,191,36,0.04)',
+            border: `1px solid ${corrections.trim() ? 'rgba(251,191,36,0.35)' : 'rgba(251,191,36,0.12)'}`,
+            borderRadius: 3,
+            color: '#e8d5a0',
+            fontSize: '0.72rem',
+            lineHeight: 1.5,
+            padding: '6px 8px',
+            outline: 'none',
+          }}
+          onFocus={e => { e.currentTarget.rows = 5; }}
+          onBlur={e => { e.currentTarget.rows = corrections.trim() ? 3 : 3; }}
+        />
       </div>
     </div>
   );
