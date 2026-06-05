@@ -31,7 +31,7 @@ import { fetchObsidian, searchEmails, searchObsidian } from './services/integrat
 import type { ObsidianNote } from './services/integrations';
 import { speak, stopSpeaking, unlockAudio, setVoiceParams, getVoiceParams } from './services/tts';
 import type { TtsVoiceParams } from './services/tts';
-import { tryStartMorningTheme, stopMorningTheme, isMorningThemePlaying, duckForTts, unduckFromTts, duckForMic, unduckFromMic } from './services/morning-theme';
+import { tryStartMorningTheme, stopMorningTheme, isMorningThemePlaying, duckForTts, unduckFromTts, duckForMic, unduckFromMic, fadeOutAndStop } from './services/morning-theme';
 import { parseCommandResponse, executeCommand } from './services/command-executor';
 import type { JarvisCommand } from './services/command-executor';
 import type { OrbState, ConversationEntry, Issue, ActionItem, ContextCard, ContextCardKind } from './types';
@@ -457,15 +457,24 @@ STRICT RULES — FOLLOW EXACTLY:
     }
 
     setOrbState('idle');
+    // Briefing done — fade music to silence instead of returning to ambient
+    fadeOutAndStop(2500);
+    setMusicPlaying(false);
   });
+
+  const handleSkipBriefing = useCallback(() => {
+    skipBriefing();
+    fadeOutAndStop(1500);
+    setMusicPlaying(false);
+  }, [skipBriefing]);
 
   // Any keypress skips the briefing while it's playing
   useEffect(() => {
     if (!isBriefing) return;
-    const onKeyDown = () => skipBriefing();
+    const onKeyDown = () => handleSkipBriefing();
     window.addEventListener('keydown', onKeyDown, { once: true });
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isBriefing, skipBriefing]);
+  }, [isBriefing, handleSkipBriefing]);
 
   const handleCancel = useCallback(async () => {
     setPendingCommand(null);
@@ -827,19 +836,20 @@ STRICT RULES — FOLLOW EXACTLY:
         onCancel={handleCancel}
       />
 
-      {/* Skip briefing button — visible while auto-briefing is speaking */}
-      {isBriefing && orbState === 'speaking' && (
+      {/* Skip briefing button — visible as soon as briefing starts (music + voice) */}
+      {isBriefing && (
         <button
-          onClick={skipBriefing}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 text-xs tracking-widest transition-colors"
+          onClick={handleSkipBriefing}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 text-xs tracking-widest transition-all hover:opacity-100"
           style={{
             minHeight: 44,
             border: '1px solid rgba(0,212,255,0.6)',
-            background: 'rgba(0,0,0,0.5)',
+            background: 'rgba(0,0,0,0.6)',
             color: '#00d4ff',
+            opacity: 0.85,
           }}
         >
-          SKIP BRIEFING
+          ▶ LET'S GO
         </button>
       )}
 

@@ -21,6 +21,8 @@ let themeSourceConnected = false;
 let ttsActive = false;
 let micActive = false;
 let fadeInterval: ReturnType<typeof setInterval> | null = null;
+// When true, all duck/unduck calls are suppressed so fadeOutAndStop() can run uninterrupted
+let fadingOut = false;
 
 // Called by tts.ts unlockAudio() inside a user gesture — required for iOS AudioContext.
 export function unlockMorningThemeAudio(): void {
@@ -72,6 +74,7 @@ function computeTargetVolume(): number {
 }
 
 function fadeTo(vol: number, durationMs = 300): void {
+  if (fadingOut) return; // don't interrupt an active fade-out
   if (fadeInterval) { clearInterval(fadeInterval); fadeInterval = null; }
 
   // Prefer GainNode — works on iOS Safari (HTMLAudioElement.volume is ignored there)
@@ -147,11 +150,54 @@ export function isMorningThemePlaying(): boolean {
 export function resetMorningTheme(): void {
   stopped = false;
   started = false;
+  fadingOut = false;
   themeAudio = null;
   themeSourceConnected = false;
   ttsActive = false;
   micActive = false;
   if (fadeInterval) { clearInterval(fadeInterval); fadeInterval = null; }
+}
+
+// Fade to silence then stop — used after briefing ends or when user skips.
+// Suppresses all duck/unduck calls for the duration so nothing fights the fade.
+export function fadeOutAndStop(durationMs = 2500): void {
+  if (fadingOut) return;
+  fadingOut = true;
+  if (fadeInterval) { clearInterval(fadeInterval); fadeInterval = null; }
+
+  // GainNode path (iOS + desktop)
+  if (themeGainNode && themeAudioCtx && themeAudioCtx.state !== 'closed') {
+    const startGain = themeGainNode.gain.value;
+    if (startGain <= 0) { stopMorningTheme(); fadingOut = false; return; }
+    const steps = Math.max(1, Math.round(durationMs / 20));
+    const delta = startGain / steps;
+    let step = 0;
+    fadeInterval = setInterval(() => {
+      step++;
+      if (themeGainNode) themeGainNode.gain.value = Math.max(0, startGain - delta * step);
+      if (step >= steps) {
+        clearInterval(fadeInterval!); fadeInterval = null;
+        stopMorningTheme(); fadingOut = false;
+      }
+    }, durationMs / steps);
+    return;
+  }
+
+  // HTMLAudioElement fallback
+  if (!themeAudio || themeAudio.paused) { stopMorningTheme(); fadingOut = false; return; }
+  const startVol = themeAudio.volume;
+  if (startVol <= 0) { stopMorningTheme(); fadingOut = false; return; }
+  const steps = Math.max(1, Math.round(durationMs / 20));
+  const delta = startVol / steps;
+  let step = 0;
+  fadeInterval = setInterval(() => {
+    step++;
+    if (themeAudio) themeAudio.volume = Math.max(0, startVol - delta * step);
+    if (step >= steps) {
+      clearInterval(fadeInterval!); fadeInterval = null;
+      stopMorningTheme(); fadingOut = false;
+    }
+  }, durationMs / steps);
 }
 
 export function duckForTts(): void {
