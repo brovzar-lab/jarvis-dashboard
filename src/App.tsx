@@ -498,18 +498,7 @@ STRICT RULES — FOLLOW EXACTLY:
     setMusicPlaying(false);
   }, [skipBriefing]);
 
-  // Any keypress outside of an input/textarea skips the briefing while it's playing
-  useEffect(() => {
-    if (!isBriefing) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return; // let the user type notes without stopping JARVIS
-      window.removeEventListener('keydown', onKeyDown);
-      void handleSkipBriefing();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isBriefing, handleSkipBriefing]);
+  // Keyboard no longer skips briefing — only the orb click or Stop Briefing button does
 
   const handleCancel = useCallback(async () => {
     setPendingCommand(null);
@@ -834,9 +823,14 @@ STRICT RULES — FOLLOW EXACTLY:
   );
 
   const handleOrbClick = () => {
-    // Unlock audio on every user tap so iOS AudioContext stays resumed
     unlockAudio();
     updateActivity();
+
+    // During briefing, clicking the orb stops it with a friendly closer
+    if (isBriefing) {
+      void handleSkipBriefing();
+      return;
+    }
 
     if (orbState === 'speaking') {
       stopSpeaking();
@@ -875,22 +869,7 @@ STRICT RULES — FOLLOW EXACTLY:
         onCancel={handleCancel}
       />
 
-      {/* Stop Briefing button — visible as soon as briefing starts */}
-      {isBriefing && (
-        <button
-          onClick={() => { void handleSkipBriefing(); }}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 text-xs tracking-widest transition-all hover:opacity-100"
-          style={{
-            minHeight: 44,
-            border: '1px solid rgba(0,212,255,0.6)',
-            background: 'rgba(0,0,0,0.6)',
-            color: '#00d4ff',
-            opacity: 0.85,
-          }}
-        >
-          Stop Briefing
-        </button>
-      )}
+      {/* Stop Briefing button is now inline below the orb — see orb panel */}
 
       {/* Header */}
       <div
@@ -1060,8 +1039,23 @@ STRICT RULES — FOLLOW EXACTLY:
             )}
 
             {/* Orb — Avengers arc-reactor brain center */}
-            <div className="flex-1 min-h-0 flex items-center justify-center relative" style={{ maxHeight: '42vh' }}>
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center relative gap-3" style={{ maxHeight: '42vh' }}>
               <VoiceOrb state={currentOrbState} onClick={handleOrbClick} orbSize={280} sessionCost={sessionCost} />
+              {isBriefing && (
+                <button
+                  onClick={() => { void handleSkipBriefing(); }}
+                  className="px-6 py-2 text-xs tracking-widest transition-all hover:opacity-100 flex-shrink-0"
+                  style={{
+                    minHeight: 40,
+                    border: '1px solid rgba(0,212,255,0.5)',
+                    background: 'rgba(0,0,0,0.5)',
+                    color: '#00d4ff',
+                    borderRadius: 3,
+                  }}
+                >
+                  ■ Stop Briefing
+                </button>
+              )}
             </div>
 
             {/* Stats row */}
