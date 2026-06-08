@@ -31,7 +31,7 @@ import { fetchObsidian, searchEmails, searchObsidian } from './services/integrat
 import type { ObsidianNote } from './services/integrations';
 import { speak, stopSpeaking, unlockAudio, setVoiceParams, getVoiceParams } from './services/tts';
 import type { TtsVoiceParams } from './services/tts';
-import { tryStartMorningTheme, stopMorningTheme, isMorningThemePlaying, duckForTts, unduckFromTts, duckForMic, unduckFromMic, fadeOutAndStop } from './services/morning-theme';
+import { tryStartMorningTheme, stopMorningTheme, isMorningThemePlaying, duckForTts, unduckFromTts, duckForMic, unduckFromMic, fadeOutAndStop, getBaseVolume, setBaseVolume } from './services/morning-theme';
 import { parseCommandResponse, executeCommand } from './services/command-executor';
 import type { JarvisCommand } from './services/command-executor';
 import {
@@ -171,6 +171,7 @@ export default function App() {
   const [actionItems, setActionItems] = useState<ActionItem[]>(loadActionItems);
   const [contextCard, setContextCard] = useState<ContextCard | null>(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(() => getBaseVolume());
   const [micReady, setMicReady] = useState(false);
   const [launched, setLaunched] = useState(false);
   const musicPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -956,14 +957,31 @@ STRICT RULES — FOLLOW EXACTLY:
         <div className="flex items-center gap-3 md:gap-4 text-xs">
           <TimePeriodIndicator />
           {musicPlaying && (
-            <button
-              onClick={() => { stopMorningTheme(); setMusicPlaying(false); }}
-              title="Stop morning theme"
-              className="flex items-center gap-1 px-2 py-1 tracking-widest transition-all hover:opacity-80"
-              style={{ border: '1px solid rgba(0,212,255,0.35)', color: '#00d4ff', background: 'transparent', fontSize: '0.5rem', borderRadius: 2 }}
-            >
-              ♫ STOP MUSIC
-            </button>
+            <div className="flex items-center gap-2">
+              <span style={{ color: '#00d4ff', fontSize: '0.6rem', opacity: 0.7 }}>♫</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={musicVolume}
+                onChange={e => {
+                  const v = parseFloat(e.target.value);
+                  setMusicVolume(v);
+                  setBaseVolume(v);
+                }}
+                title={`Music volume: ${Math.round(musicVolume * 100)}%`}
+                style={{ width: 64, accentColor: '#00d4ff', cursor: 'pointer', verticalAlign: 'middle' }}
+              />
+              <button
+                onClick={() => { stopMorningTheme(); setMusicPlaying(false); }}
+                title="Stop morning theme"
+                className="flex items-center gap-1 px-2 py-1 tracking-widest transition-all hover:opacity-80"
+                style={{ border: '1px solid rgba(0,212,255,0.35)', color: '#00d4ff', background: 'transparent', fontSize: '0.5rem', borderRadius: 2 }}
+              >
+                STOP
+              </button>
+            </div>
           )}
           {/* Voice parameter tuner */}
           <div ref={voiceTunerRef}>

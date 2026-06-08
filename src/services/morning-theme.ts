@@ -4,7 +4,16 @@ const THEME_URL =
   (import.meta.env.VITE_MORNING_THEME_URL as string | undefined)?.trim() ||
   '/morning-theme.mp3';
 
-const BASE_VOLUME = 0.42;
+let BASE_VOLUME = (() => {
+  try {
+    const saved = localStorage.getItem('jarvis_music_volume');
+    if (saved !== null) {
+      const v = parseFloat(saved);
+      if (!isNaN(v)) return Math.max(0, Math.min(1, v));
+    }
+  } catch {}
+  return 0.42;
+})();
 
 let themeAudio: HTMLAudioElement | null = null;
 let started = false;
@@ -218,4 +227,14 @@ export function duckForMic(): void {
 export function unduckFromMic(): void {
   micActive = false;
   fadeTo(computeTargetVolume(), 300);
+}
+
+export function getBaseVolume(): number {
+  return BASE_VOLUME;
+}
+
+export function setBaseVolume(vol: number): void {
+  BASE_VOLUME = Math.max(0, Math.min(1, vol));
+  try { localStorage.setItem('jarvis_music_volume', String(BASE_VOLUME)); } catch {}
+  if (!fadingOut) fadeTo(computeTargetVolume(), 80);
 }
