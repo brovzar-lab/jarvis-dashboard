@@ -44,6 +44,50 @@ import type { OrbState, ConversationEntry, Issue, ActionItem, ContextCard, Conte
 
 const COMPANY_ID = getCompanyId();
 
+const JARVIS_GREETINGS = [
+  "Welcome back, sir. The world has been holding its breath waiting for you.",
+  "You've arrived. The markets opened, three decisions are queued, and I have things to tell you.",
+  "Rise and reign. Your agenda is loaded, your pitches are primed, and the day is yours to command.",
+  "Another day, another empire to run. Allow me to bring you up to speed.",
+  "Status: optimal. You, however, have only just arrived. Let me fix that.",
+  "Good morning, sir. I've been busy while you were away. Shall we begin?",
+  "The briefing clock started the moment you logged in. Here is what you need to know.",
+  "Attention. Your schedule is ambitious, your pipeline is active, and I have intelligence to deliver.",
+  "The night shift is over. I'm handing the watch back to you — with a full report.",
+  "Welcome back, sir. The world did not pause in your absence. Fortunately, neither did I.",
+  "You've arrived. Let's not waste the momentum. Here is your intelligence report for today.",
+  "Good morning. Before you touch a single thing, let me tell you what matters.",
+  "Engines are warm. Your team is active. Pitches are queued. You are cleared for launch.",
+  "I've been preparing this briefing since your last session. You're going to want to hear this.",
+  "Commander on deck. Allow me to walk you through the night's developments.",
+  "The competition started hours ago. Luckily, so did I. Here is where we stand.",
+  "You're back. Excellent timing — I have a briefing worth your full attention.",
+  "Power restored. Operations are live. Let me walk you through what has changed since you were last here.",
+  "All systems confirmed. The only variable left was you — and now you're here. Let us proceed.",
+  "Good morning, sir. The world kept moving. So did your agenda. Here is what awaits you today.",
+];
+
+const GREETING_SESSION_KEY = 'jarvis_greeting_idx';
+
+function pickGreeting(): string {
+  try {
+    const today = new Date().toLocaleDateString('sv');
+    const stored = sessionStorage.getItem(GREETING_SESSION_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as { idx: number; date: string };
+      if (parsed.date === today) return JARVIS_GREETINGS[parsed.idx % JARVIS_GREETINGS.length];
+    }
+    const nextIdx = stored
+      ? (JSON.parse(stored) as { idx: number }).idx + 1
+      : Math.floor(Math.random() * JARVIS_GREETINGS.length);
+    const idx = nextIdx % JARVIS_GREETINGS.length;
+    sessionStorage.setItem(GREETING_SESSION_KEY, JSON.stringify({ idx, date: today }));
+    return JARVIS_GREETINGS[idx];
+  } catch {
+    return JARVIS_GREETINGS[0];
+  }
+}
+
 const PITCH_TRIGGERS = [
   'pitch me the new projects',
   "pitch me what's in the gate",
@@ -449,10 +493,9 @@ export default function App() {
 
     const briefContext = baseContext + emailContext + calendarContext + correctionsContext + (brainContext ? '\n\n' + brainContext : '');
 
-    const hour = new Date().getHours();
-    const timePeriod = hour >= 22 || hour < 5 ? 'late night' : hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
     const pitchCount = (dashboardData.lemaPitches ?? []).length;
-    const briefQuery = `Open with ONE punchy hype-man greeting for Billy Rovzar, CEO of Lemon Studios Mexico City (1 sentence, 10-15 words, time of day: ${timePeriod}, profanity welcome, overconfident tone). Then go DIRECTLY into a thorough, complete executive briefing — NO second greeting after the opener.
+    const openingGreeting = pickGreeting();
+    const briefQuery = `Start with this exact greeting, word for word: "${openingGreeting}" — then go DIRECTLY into a thorough, complete executive briefing with no additional greeting.
 
 Cover ALL of the following in order:
 
