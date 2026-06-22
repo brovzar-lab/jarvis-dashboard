@@ -902,6 +902,14 @@ STRICT RULES — FOLLOW EXACTLY:
     }
   }, [isListening]);
 
+  // If recognition ended (onend) without producing a result, processQuery was never called and
+  // orbState is stuck at 'listening'. Reset it so the user can click the orb again.
+  useEffect(() => {
+    if (!isListening && orbState === 'listening') {
+      setOrbState('idle');
+    }
+  }, [isListening, orbState]);
+
   const { isListening: wakeListening } = useWakeWord(
     () => {
       unlockAudio();

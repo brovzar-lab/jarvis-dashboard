@@ -30,40 +30,52 @@ export function useSpeechRecognition(onResult: (transcript: string) => void) {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  // Ref so the recognition instance always calls the latest processQuery without recreating
+  const onResultRef = useRef(onResult);
+  onResultRef.current = onResult;
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      setIsSupported(true);
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
+    if (!SpeechRecognition) return;
 
-      recognition.onresult = (event: SpeechRecognitionEvent) => {
-        const transcript = Array.from(event.results)
-          .map(r => r[0].transcript)
-          .join('');
-        onResult(transcript);
-        setIsListening(false);
-      };
+    setIsSupported(true);
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
 
-      recognition.onerror = () => {
-        setIsListening(false);
-      };
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = Array.from(event.results)
+        .map(r => r[0].transcript)
+        .join('');
+      onResultRef.current(transcript);
+      setIsListening(false);
+    };
 
-      recognition.onend = () => {
-        setIsListening(false);
-      };
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
 
-      recognitionRef.current = recognition;
-    }
-  }, [onResult]);
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      try { recognition.stop(); } catch { /* already stopped */ }
+      recognitionRef.current = null;
+    };
+  }, []); // Create once — onResultRef handles callback freshness
 
   const startListening = useCallback(() => {
     if (!recognitionRef.current || isListening) return;
-    setIsListening(true);
-    recognitionRef.current.start();
+    try {
+      recognitionRef.current.start();
+      setIsListening(true);
+    } catch {
+      // Browser busy (e.g. another recognition active) — don't set listening state
+    }
   }, [isListening]);
 
   const stopListening = useCallback(() => {
