@@ -44,6 +44,14 @@ let audioContext: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let currentAudio: HTMLAudioElement | null = null;
 
+// On iOS, SpeechRecognition sets the audio session to PlayAndRecord with the receiver
+// (earpiece) as the default output port — identical to a phone call. AudioContext
+// inherits that session and routes TTS through the earpiece. Using HTMLAudioElement
+// instead switches iOS back to Playback mode and routes audio through the loudspeaker.
+function isIOS(): boolean {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !('MSStream' in window);
+}
+
 // Call from any user gesture to unlock audio on iOS Safari.
 // iOS blocks audio playback that isn't initiated within a user gesture context.
 // Resuming AudioContext during a gesture unlocks it for subsequent async playback.
@@ -111,8 +119,11 @@ async function speakElevenLabs(text: string): Promise<void> {
 
   const arrayBuffer = await res.arrayBuffer();
 
-  // Preferred path: use unlocked AudioContext (works on iOS when unlockAudio() was called in a user gesture)
-  if (audioContext && audioContext.state !== 'closed') {
+  // Preferred path: use unlocked AudioContext.
+  // Skip on iOS — AudioContext inherits the voice-call audio session set by SpeechRecognition
+  // and routes audio through the earpiece. HTMLAudioElement below resets the session to
+  // Playback mode and routes through the loudspeaker.
+  if (!isIOS() && audioContext && audioContext.state !== 'closed') {
     try {
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
       return new Promise<void>(resolve => {
