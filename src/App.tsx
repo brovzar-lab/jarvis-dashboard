@@ -23,6 +23,9 @@ import { useCostTracker } from './hooks/useCostTracker';
 import { useProactiveBriefing } from './hooks/useProactiveBriefing';
 import { useCardAction } from './hooks/useCardAction';
 import { TodoPanel } from './components/TodoPanel';
+import type { TodoItem } from './components/TodoPanel';
+import { useToDoRecommendations } from './hooks/useToDoRecommendations';
+import type { TodoRecommendation } from './hooks/useToDoRecommendations';
 import { askJarvis } from './services/jarvis-ai';
 import { askJarvisStreaming } from './services/jarvis-stream';
 import { addClaudeUsage } from './services/cost-tracker';
@@ -320,6 +323,44 @@ export default function App() {
     const interval = setInterval(() => fetchObsidian().then(setObsidianNotes), 300_000);
     return () => clearInterval(interval);
   }, []);
+
+  // Todos — lifted state so BriefingPanel can add recommended items
+  const TODOS_STORAGE_KEY = 'jarvis_todos';
+  const [todos, setTodos] = useState<TodoItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(TODOS_STORAGE_KEY);
+      if (saved) return JSON.parse(saved) as TodoItem[];
+    } catch {}
+    return [];
+  });
+  useEffect(() => {
+    localStorage.setItem(TODOS_STORAGE_KEY, JSON.stringify(todos));
+  }, [todos]);
+  const handleAddTodo = useCallback((text: string) => {
+    setTodos(prev => [{ id: String(Date.now()), text, done: false, timestamp: Date.now() }, ...prev]);
+  }, []);
+  const handleToggleTodo = useCallback((id: string) => {
+    setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  }, []);
+  const handleDeleteTodo = useCallback((id: string) => {
+    setTodos(prev => prev.filter(t => t.id !== id));
+  }, []);
+  const handleClearDoneTodos = useCallback(() => {
+    setTodos(prev => prev.filter(t => !t.done));
+  }, []);
+
+  // AI to-do recommendations — generated from emails, calendar, and Obsidian
+  const {
+    recommendations: todoRecommendations,
+    isGenerating: isGeneratingRecs,
+    refresh: refreshRecommendations,
+    dismiss: dismissRecommendation,
+  } = useToDoRecommendations({
+    emails,
+    calendarEvents,
+    obsidianNotes,
+    enabled: launched,
+  });
 
   // Sequence on launch: 1) music  2) mic permission → briefing
   const handleLaunch = useCallback(async () => {
@@ -1227,6 +1268,11 @@ STRICT RULES — FOLLOW EXACTLY:
                 onAction={handleTextSubmit}
                 contextCard={contextCard}
                 onCorrectionSave={handleCorrectionSave}
+                recommendations={todoRecommendations}
+                isGeneratingRecs={isGeneratingRecs}
+                onAddRecommendation={handleAddTodo}
+                onDismissRecommendation={dismissRecommendation}
+                onRefreshRecommendations={refreshRecommendations}
               />
             </div>
 
@@ -1246,7 +1292,13 @@ STRICT RULES — FOLLOW EXACTLY:
             <CalendarPanel onAction={handleTextSubmit} />
           </div>
           <div className="flex-[4] min-h-0 panel-border corner-decoration rounded overflow-hidden">
-            <TodoPanel />
+            <TodoPanel
+              todos={todos}
+              onAdd={handleAddTodo}
+              onToggle={handleToggleTodo}
+              onDelete={handleDeleteTodo}
+              onClearDone={handleClearDoneTodos}
+            />
           </div>
         </div>
 
@@ -1526,9 +1578,14 @@ interface BriefingPanelProps {
   onAction: (text: string) => void;
   contextCard: ContextCard | null;
   onCorrectionSave: (draft: string) => void;
+  recommendations: TodoRecommendation[];
+  isGeneratingRecs: boolean;
+  onAddRecommendation: (text: string) => void;
+  onDismissRecommendation: (id: string) => void;
+  onRefreshRecommendations: () => void;
 }
 
-function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard, onCorrectionSave }: BriefingPanelProps) {
+function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, contextCard, onCorrectionSave, recommendations, isGeneratingRecs, onAddRecommendation, onDismissRecommendation, onRefreshRecommendations }: BriefingPanelProps) {
   const hour = new Date().getHours();
   const periodLabel = hour < 12 ? 'MORNING CHECK-IN' : hour < 17 ? 'MID-DAY CHECK-IN' : 'END-OF-DAY BRIEF';
   const [correctionDraft, setCorrectionDraft] = useState('');
@@ -1560,6 +1617,11 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
           {periodLabel}
         </motion.span>
         <div className="flex items-center gap-2">
+          {recommendations.length > 0 && (
+            <span className="text-xs tracking-widest px-1.5 py-0.5" style={{ color: '#a78bfa', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)', fontSize: '0.5rem' }}>
+              AI · {recommendations.length}
+            </span>
+          )}
           <span className="text-xs tracking-widest px-1.5 py-0.5" style={{ color: '#00d4ff', background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.15)', fontSize: '0.5rem' }}>
             ACTION ITEMS{actionItems.length > 0 ? ` · ${actionItems.length}` : ''}
           </span>
@@ -1577,8 +1639,109 @@ function BriefingPanel({ actionItems, onDismissItem, lastUpdated, onAction, cont
         </AnimatePresence>
       </div>
 
-      {/* Scrollable feed: JARVIS action items */}
+      {/* Scrollable feed: AI recommendations + JARVIS action items */}
       <div className="flex-1 overflow-y-auto min-h-0 py-2 space-y-3">
+
+        {/* AI-generated to-do recommendations */}
+        {(recommendations.length > 0 || isGeneratingRecs) && (
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="tracking-widest" style={{ color: '#a78bfa', fontSize: '0.48rem' }}>
+                AI SUGGESTED
+              </span>
+              <button
+                onClick={onRefreshRecommendations}
+                disabled={isGeneratingRecs}
+                className="tracking-widest transition-opacity"
+                style={{
+                  color: isGeneratingRecs ? '#4a3a70' : '#7c5cdc',
+                  border: '1px solid rgba(167,139,250,0.2)',
+                  background: 'transparent',
+                  fontSize: '0.42rem',
+                  padding: '1px 5px',
+                  borderRadius: 2,
+                  cursor: isGeneratingRecs ? 'default' : 'pointer',
+                }}
+              >
+                {isGeneratingRecs ? '…' : '↻'}
+              </button>
+            </div>
+            {isGeneratingRecs && recommendations.length === 0 && (
+              <motion.div
+                animate={{ opacity: [0.3, 0.7, 0.3] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="tracking-widest py-1"
+                style={{ color: '#6d4eaa', fontSize: '0.6rem' }}
+              >
+                ANALYZING SOURCES…
+              </motion.div>
+            )}
+            <AnimatePresence initial={false}>
+              {recommendations.map((rec, i) => {
+                const sourceColors: Record<string, string> = {
+                  email: '#60a5fa',
+                  calendar: '#34d399',
+                  obsidian: '#fb923c',
+                };
+                const priorityDot: Record<string, string> = {
+                  high: '#f87171',
+                  medium: '#fbbf24',
+                  low: '#6b7280',
+                };
+                return (
+                  <motion.div
+                    key={rec.id}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 8, height: 0, marginBottom: 0 }}
+                    transition={{ delay: Math.min(i * 0.05, 0.25), duration: 0.18 }}
+                    className="flex items-start gap-2 mb-1"
+                    style={{
+                      background: 'rgba(167,139,250,0.04)',
+                      border: '1px solid rgba(167,139,250,0.12)',
+                      borderRadius: 3,
+                      padding: '6px 8px',
+                    }}
+                  >
+                    <div className="flex-shrink-0 flex flex-col items-center gap-1 mt-0.5">
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: priorityDot[rec.priority] ?? '#6b7280' }} />
+                      <span className="tracking-widest" style={{ color: sourceColors[rec.source] ?? '#a78bfa', fontSize: '0.38rem' }}>
+                        {rec.source === 'obsidian' ? 'BRAIN' : rec.source.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0" style={{ color: '#d4bcff', fontSize: '0.75rem', lineHeight: 1.5 }}>
+                      {rec.text}
+                    </div>
+                    <div className="flex flex-col gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => { onAddRecommendation(rec.text); onDismissRecommendation(rec.id); }}
+                        title="Add to notes"
+                        className="tracking-widest transition-colors"
+                        style={{ color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)', background: 'transparent', fontSize: '0.4rem', padding: '1px 4px', borderRadius: 2 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(167,139,250,0.1)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        +ADD
+                      </button>
+                      <button
+                        onClick={() => onDismissRecommendation(rec.id)}
+                        title="Dismiss"
+                        className="transition-opacity opacity-30 hover:opacity-70"
+                        style={{ color: '#a78bfa', fontSize: '0.65rem', lineHeight: 1, padding: '0 3px' }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+            {recommendations.length > 0 && (
+              <div className="glow-line mt-2 mb-1" style={{ opacity: 0.4 }} />
+            )}
+          </div>
+        )}
+
         {actionItems.length > 0 ? (
           <div className="space-y-1.5">
             {actionItems.map((item, i) => (
