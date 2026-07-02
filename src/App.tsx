@@ -328,6 +328,9 @@ export default function App() {
     tryStartMorningTheme();
     setLaunched(true);
 
+    // Request fullscreen on first gesture (PWA uses manifest; this covers browser tabs)
+    document.documentElement.requestFullscreen().catch(() => { /* unsupported or denied — no-op */ });
+
     // Poll music state
     if (musicPollRef.current) clearInterval(musicPollRef.current);
     musicPollRef.current = setInterval(() => {
