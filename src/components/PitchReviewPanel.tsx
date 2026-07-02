@@ -6,7 +6,7 @@ interface Props {
   session: PitchSessionState;
   pendingPitches: Issue[];
   onStartReview: () => void;
-  onVerdict: (verdict: 'develop' | 'vault' | 'kill') => void;
+  onVerdict: (verdict: 'develop' | 'resolve' | 'kill') => void;
   onAbort: () => void;
 }
 
@@ -21,11 +21,11 @@ export function PitchReviewPanel({ session, pendingPitches, onStartReview, onVer
       <div className="flex items-center justify-between mb-2 flex-shrink-0">
         <motion.span
           className="tracking-widest text-jarvis"
-          style={{ fontSize: '0.72rem' }}
+          style={{ fontSize: '0.65rem' }}
           animate={{ opacity: [0.7, 1, 0.7] }}
           transition={{ duration: 4, repeat: Infinity }}
         >
-          LEMON VIRTUAL PITCHES
+          LEMA VIRTUAL STUDIOS · DEVELOPMENT GATE
         </motion.span>
         {active && (
           <div className="flex items-center gap-2">
@@ -158,7 +158,7 @@ export function PitchReviewPanel({ session, pendingPitches, onStartReview, onVer
               <div className="flex gap-2 mb-3 flex-shrink-0">
                 {[
                   { label: 'DEV', value: stats.developed, color: '#34d399' },
-                  { label: 'VAULT', value: stats.vaulted, color: '#fbbf24' },
+                  { label: 'RESOLVE', value: stats.resolved, color: '#fbbf24' },
                   { label: 'KILL', value: stats.killed, color: '#ff4444' },
                 ].map(s => (
                   <div
@@ -189,7 +189,7 @@ export function PitchReviewPanel({ session, pendingPitches, onStartReview, onVer
                   DEVELOP
                 </button>
                 <button
-                  onClick={() => onVerdict('vault')}
+                  onClick={() => onVerdict('resolve')}
                   disabled={isExecuting}
                   className="flex-1 py-1.5 font-mono tracking-widest transition-all disabled:opacity-25"
                   style={{
@@ -200,7 +200,7 @@ export function PitchReviewPanel({ session, pendingPitches, onStartReview, onVer
                     borderRadius: 2,
                   }}
                 >
-                  VAULT
+                  RESOLVE
                 </button>
                 <button
                   onClick={() => onVerdict('kill')}
@@ -233,7 +233,7 @@ export function PitchReviewPanel({ session, pendingPitches, onStartReview, onVer
               <div className="flex gap-4">
                 {[
                   { label: 'GREENLIT', value: stats.developed, color: '#34d399' },
-                  { label: 'VAULTED', value: stats.vaulted, color: '#fbbf24' },
+                  { label: 'RESOLVED', value: stats.resolved, color: '#fbbf24' },
                   { label: 'KILLED', value: stats.killed, color: '#ff4444' },
                 ].map(s => (
                   <div key={s.label} className="text-center">

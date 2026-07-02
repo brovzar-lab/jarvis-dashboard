@@ -376,16 +376,16 @@ export function detectPitchMediaType(title: string, description?: string): 'tv' 
 
 export async function executePitchVerdict(
   projectId: string,
-  verdict: 'develop' | 'vault' | 'kill',
+  verdict: 'develop' | 'resolve' | 'kill',
 ): Promise<void> {
-  // LEMA pitches are Paperclip projects.
+  // LEMA pitches are Paperclip projects (LEMA Lemon Virtual Studios — Development Gate board).
   // Verdict is stored in billyVerdict field; queueStatus archives or decides the pitch.
-  // billyVerdict values: 'approve' | 'reject' | 'vault'
+  // billyVerdict values: 'approve' | 'resolve' | 'reject'
   // queueStatus values: 'awaiting_review' | 'decided' | 'archived'
   const verdictMap: Record<string, { billyVerdict: string; queueStatus: string }> = {
-    develop: { billyVerdict: 'approve', queueStatus: 'decided' },
-    vault:   { billyVerdict: 'vault',   queueStatus: 'archived' },
-    kill:    { billyVerdict: 'reject',  queueStatus: 'archived' },
+    develop: { billyVerdict: 'approve',  queueStatus: 'decided'  },
+    resolve: { billyVerdict: 'resolve',  queueStatus: 'archived' },
+    kill:    { billyVerdict: 'reject',   queueStatus: 'archived' },
   };
 
   const post = async (action: string, params: Record<string, unknown>) => {
@@ -407,6 +407,6 @@ export async function executePitchVerdict(
   await post('patch_project', { projectId, ...verdictMap[verdict] });
   // Best-effort comment — projects may not support the issues comment endpoint
   const ts = new Date().toISOString();
-  const labels = { develop: 'Greenlighted', vault: 'Vaulted', kill: 'Killed' };
+  const labels = { develop: 'Greenlighted', resolve: 'Resolved', kill: 'Killed' };
   post('add_comment', { issueId: projectId, body: `${labels[verdict]} by Billy via JARVIS — ${ts}` }).catch(() => {});
 }

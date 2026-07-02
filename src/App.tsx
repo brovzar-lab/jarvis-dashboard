@@ -659,8 +659,8 @@ STRICT RULES — FOLLOW EXACTLY:
         convHistoryRef.current.push({ role: 'user', content: userText });
         if (['develop', 'green light', 'greenlight', 'yes'].some(w => lower.includes(w))) {
           handlePitchVerdict('develop');
-        } else if (['vault', 'save it'].some(w => lower.includes(w))) {
-          handlePitchVerdict('vault');
+        } else if (['resolve', 'resolved', 'archive', 'save it'].some(w => lower.includes(w))) {
+          handlePitchVerdict('resolve');
         } else if (['kill', 'pass', 'no', 'next'].some(w => lower === w || lower.startsWith(w + ' '))) {
           handlePitchVerdict('kill');
         } else if (['repeat', 'say that again'].some(w => lower.includes(w))) {
@@ -668,7 +668,7 @@ STRICT RULES — FOLLOW EXACTLY:
         } else if (lower.includes('more detail')) {
           speakPitchDetail();
         } else {
-          const reminder = 'Say develop, vault, or kill to decide this pitch, sir.';
+          const reminder = 'Say develop, resolve, or kill to decide this pitch, sir.';
           addEntry('jarvis', reminder);
           setOrbState('speaking');
           speak(reminder).then(() => setOrbState('idle'));
