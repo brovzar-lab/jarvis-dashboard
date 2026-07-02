@@ -559,18 +559,20 @@ STRICT RULES — FOLLOW EXACTLY:
       await ttsChain;
     } catch {
       // Streaming failed — fall back to a simple greeting
-      const fallback = `Good ${timePeriod}, boss. Dashboard is live and ready.`;
+      const h = new Date().getHours();
+      const period = h >= 22 || h < 5 ? 'late night' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+      const fallback = `Good ${period}, boss. Dashboard is live and ready.`;
       setConversation(prev => prev.map(e =>
         e.id === briefEntryId ? { ...e, text: fallback } : e
       ));
       setOrbState('speaking');
       await speak(fallback);
+    } finally {
+      setOrbState('idle');
+      // Briefing done — fade music to silence instead of returning to ambient
+      fadeOutAndStop(2500);
+      setMusicPlaying(false);
     }
-
-    setOrbState('idle');
-    // Briefing done — fade music to silence instead of returning to ambient
-    fadeOutAndStop(2500);
-    setMusicPlaying(false);
   });
 
   const BRIEFING_CLOSERS = [
