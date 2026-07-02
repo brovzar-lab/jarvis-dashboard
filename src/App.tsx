@@ -1314,7 +1314,7 @@ STRICT RULES — FOLLOW EXACTLY:
                 onAbort={abortPitchSession}
               />
             ) : (
-              <LoadingSkeleton label="LEMON VIRTUAL PITCHES" />
+              <LoadingSkeleton label="LEMA VIRTUAL STUDIOS · DEVELOPMENT GATE" />
             )}
           </div>
           <div className="flex-[4] min-h-0">
