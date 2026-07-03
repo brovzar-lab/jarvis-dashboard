@@ -9,7 +9,7 @@ export interface PitchSessionState {
   active: boolean;
   pitches: Issue[];
   currentIndex: number;
-  stats: { developed: number; vaulted: number; killed: number };
+  stats: { developed: number; resolved: number; killed: number };
   status: PitchStatus;
 }
 
@@ -17,7 +17,7 @@ const IDLE_STATE: PitchSessionState = {
   active: false,
   pitches: [],
   currentIndex: 0,
-  stats: { developed: 0, vaulted: 0, killed: 0 },
+  stats: { developed: 0, resolved: 0, killed: 0 },
   status: 'idle',
 };
 
@@ -76,7 +76,7 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
     if (synopsis) parts.push(synopsis);
     if (tone) parts.push(`Tone: ${tone}.`);
     if (comps) parts.push(`Comps: ${comps}.`);
-    parts.push('Develop, vault, or kill?');
+    parts.push('Develop, resolve, or kill?');
 
     const text = parts.join(' ');
     docCacheRef.current.set(cacheKey, text);
@@ -112,9 +112,9 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
     const nextIndex = s.currentIndex + 1;
 
     if (nextIndex >= s.pitches.length) {
-      const { developed, vaulted, killed } = s.stats;
-      const total = developed + vaulted + killed;
-      const summary = `OK Billy, we ran ${total} pitch${total === 1 ? '' : 'es'}. You greenlit ${developed} for development, vaulted ${vaulted}, killed ${killed}.`;
+      const { developed, resolved, killed } = s.stats;
+      const total = developed + resolved + killed;
+      const summary = `OK Billy, we ran ${total} pitch${total === 1 ? '' : 'es'}. You greenlit ${developed} for development, resolved ${resolved}, killed ${killed}.`;
       update({ status: 'summary' });
       addEntry('jarvis', summary);
       setOrbState('speaking');
@@ -127,14 +127,14 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
     }
   }, [update, reset, addEntry, setOrbState]);
 
-  const handleVerdict = useCallback(async (verdict: 'develop' | 'vault' | 'kill') => {
+  const handleVerdict = useCallback(async (verdict: 'develop' | 'resolve' | 'kill') => {
     const s = sessionRef.current;
     if (!s.active || s.status !== 'awaiting_verdict') return;
 
     const issue = s.pitches[s.currentIndex];
     const newStats = { ...s.stats };
     if (verdict === 'develop') newStats.developed++;
-    else if (verdict === 'vault') newStats.vaulted++;
+    else if (verdict === 'resolve') newStats.resolved++;
     else newStats.killed++;
 
     update({ status: 'executing', stats: newStats });
@@ -145,8 +145,8 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
       const mediaType = detectPitchMediaType(issue.title, issue.description);
       const board = mediaType === 'tv' ? 'TV Development' : 'Movie Development';
       confirmText = `Sending "${issue.title}" to ${board}.`;
-    } else if (verdict === 'vault') {
-      confirmText = 'Vaulted. We can pick it up later.';
+    } else if (verdict === 'resolve') {
+      confirmText = 'Resolved. Archiving that one.';
     } else {
       confirmText = 'Killed. Done with that one.';
     }
@@ -190,7 +190,7 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
 
     update({ status: 'pitching' });
     setOrbState('speaking');
-    await speak(`Full detail for ${issue.title}: ${detail} Develop, vault, or kill?`);
+    await speak(`Full detail for ${issue.title}: ${detail} Develop, resolve, or kill?`);
     if (abortRef.current) return;
     update({ status: 'awaiting_verdict' });
     setOrbState('idle');
@@ -216,7 +216,7 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
       active: true,
       pitches: pending,
       currentIndex: 0,
-      stats: { developed: 0, vaulted: 0, killed: 0 },
+      stats: { developed: 0, resolved: 0, killed: 0 },
       status: 'fetching',
     };
     sessionRef.current = newState;
