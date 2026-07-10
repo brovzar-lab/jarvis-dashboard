@@ -22,7 +22,7 @@ import { useCalendar } from './hooks/useCalendar';
 import { useCostTracker } from './hooks/useCostTracker';
 import { useProactiveBriefing } from './hooks/useProactiveBriefing';
 import { useCardAction } from './hooks/useCardAction';
-import { TodoPanel } from './components/TodoPanel';
+import { AgendaPanel } from './components/AgendaPanel';
 import { askJarvis } from './services/jarvis-ai';
 import { askJarvisStreaming } from './services/jarvis-stream';
 import { addClaudeUsage } from './services/cost-tracker';
@@ -1246,7 +1246,7 @@ STRICT RULES — FOLLOW EXACTLY:
             <CalendarPanel onAction={handleTextSubmit} />
           </div>
           <div className="flex-[4] min-h-0 panel-border corner-decoration rounded overflow-hidden">
-            <TodoPanel />
+            <AgendaPanel issues={dashboardData?.waitingOnMeIssues ?? []} onRefresh={refreshDashboard} />
           </div>
         </div>
 
