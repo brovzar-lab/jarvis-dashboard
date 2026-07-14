@@ -311,14 +311,20 @@ export default function App() {
   const { data: calendarEvents = [] } = useCalendar();
   const sessionCost = useCostTracker();
   const [obsidianNotes, setObsidianNotes] = useState<ObsidianNote[]>([]);
+  const [obsidianLoaded, setObsidianLoaded] = useState(false);
   const [memoryContext, setMemoryContext] = useState('');
   const [brainMemories, setBrainMemories] = useState<Memory[]>(() => loadMemories());
 
   useEffect(() => {
-    fetchObsidian().then(setObsidianNotes);
+    // Give Obsidian up to 6 seconds before allowing briefing to start.
+    // Prevents JARVIS from saying "vault not connected" when notes are simply still loading.
+    const timeout = setTimeout(() => setObsidianLoaded(true), 6000);
+    fetchObsidian()
+      .then(setObsidianNotes)
+      .finally(() => { setObsidianLoaded(true); clearTimeout(timeout); });
     // Refresh vault notes every 5 minutes
     const interval = setInterval(() => fetchObsidian().then(setObsidianNotes), 300_000);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
   }, []);
 
   // Sequence on launch: 1) music  2) mic permission → briefing
@@ -463,7 +469,8 @@ export default function App() {
   }, []);
 
   // Unified opening — hype compliment + briefing in one streaming call, once per calendar day
-  const { isBriefing, skipBriefing } = useProactiveBriefing(dashboardData, conversation.length > 0, micReady, async () => {
+  // Gate on obsidianLoaded so vault notes are included before briefing context is built
+  const { isBriefing, skipBriefing } = useProactiveBriefing(dashboardData, conversation.length > 0, micReady && obsidianLoaded, async () => {
     if (!dashboardData) return;
 
     briefingAbortRef.current = false;

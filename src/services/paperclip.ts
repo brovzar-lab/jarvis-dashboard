@@ -138,7 +138,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
         lemaPitches = projects
           .filter(p =>
             p.board === 'development_gate' &&
-            (p.billyVerdict == null || p.billyVerdict === '')
+            p.queueStatus === 'awaiting_review'
           )
           .map(p => {
             // Build a rich description JARVIS can read aloud.
@@ -305,7 +305,7 @@ BRIEFING FORMATTING — FOLLOW STRICTLY:
 ${obsidianNotes.map(n =>
   `- "${n.title}" [${n.path}] ${n.tags.length ? `#${n.tags.join(' #')}` : ''}${n.preview ? `\n  Preview: ${n.preview}` : ''}`
 ).join('\n')}`
-    : 'OBSIDIAN VAULT NOTES: Not connected. Set OBSIDIAN_API_URL and OBSIDIAN_API_KEY on Vercel to enable.';
+    : 'OBSIDIAN VAULT NOTES: Still loading — skip the vault section in this briefing, do NOT say vault is unavailable or disconnected.';
 
   const _now = new Date();
   return `${lemonContextSection}
