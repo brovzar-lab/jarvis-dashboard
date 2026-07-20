@@ -1,52 +1,33 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-interface TodoItem {
+export interface TodoItem {
   id: string;
   text: string;
   done: boolean;
   timestamp: number;
 }
 
-const STORAGE_KEY = 'jarvis_todos';
-
-function loadTodos(): TodoItem[] {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved) as TodoItem[];
-  } catch {}
-  return [];
+interface TodoPanelProps {
+  todos: TodoItem[];
+  onAdd: (text: string) => void;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+  onClearDone: () => void;
 }
 
-export function TodoPanel() {
-  const [todos, setTodos] = useState<TodoItem[]>(loadTodos);
+export function TodoPanel({ todos, onAdd, onToggle, onDelete, onClearDone }: TodoPanelProps) {
   const [input, setInput] = useState('');
   const [exported, setExported] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-  }, [todos]);
-
-  const addTodo = useCallback(() => {
+  const handleAdd = useCallback(() => {
     const text = input.trim();
     if (!text) return;
-    setTodos(prev => [{ id: String(Date.now()), text, done: false, timestamp: Date.now() }, ...prev]);
+    onAdd(text);
     setInput('');
     inputRef.current?.focus();
-  }, [input]);
-
-  const toggleTodo = useCallback((id: string) => {
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
-  }, []);
-
-  const deleteTodo = useCallback((id: string) => {
-    setTodos(prev => prev.filter(t => t.id !== id));
-  }, []);
-
-  const clearDone = useCallback(() => {
-    setTodos(prev => prev.filter(t => !t.done));
-  }, []);
+  }, [input, onAdd]);
 
   const exportNotes = useCallback(async () => {
     const pending = todos.filter(t => !t.done);
@@ -55,7 +36,6 @@ export function TodoPanel() {
     const body = pending.map(t => `• ${t.text}`).join('\n');
     const full = `JARVIS NOTES — ${dateStr}\n\n${body}`;
 
-    // iOS/Android: Web Share API shows native sheet including Apple Notes
     if (navigator.share) {
       try {
         await navigator.share({ title: 'JARVIS Notes', text: full });
@@ -63,13 +43,11 @@ export function TodoPanel() {
       } catch { /* cancelled */ }
     }
 
-    // Desktop: copy to clipboard
     try {
       await navigator.clipboard.writeText(full);
       setExported(true);
       setTimeout(() => setExported(false), 2000);
     } catch {
-      // Last resort: open Notes on iOS via URL scheme
       window.location.href = `notes://x-callback-url/create?title=JARVIS%20Notes&body=${encodeURIComponent(body)}`;
     }
   }, [todos]);
@@ -91,7 +69,7 @@ export function TodoPanel() {
         <div className="flex items-center gap-1.5">
           {doneCount > 0 && (
             <button
-              onClick={clearDone}
+              onClick={onClearDone}
               className="tracking-widest transition-opacity hover:opacity-80"
               style={{ color: '#1a4060', border: '1px solid rgba(0,212,255,0.1)', fontSize: '0.48rem', padding: '1px 5px', borderRadius: 2, background: 'transparent' }}
             >
@@ -118,7 +96,7 @@ export function TodoPanel() {
           type="text"
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') addTodo(); }}
+          onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
           placeholder="Type a note and press Enter..."
           className="flex-1 min-w-0 bg-transparent outline-none"
           style={{
@@ -129,7 +107,7 @@ export function TodoPanel() {
           }}
         />
         <button
-          onClick={addTodo}
+          onClick={handleAdd}
           className="flex-shrink-0 tracking-widest transition-opacity hover:opacity-80"
           style={{ color: '#00d4ff', border: '1px solid rgba(0,212,255,0.25)', fontSize: '0.48rem', padding: '2px 7px', borderRadius: 2, background: 'transparent' }}
         >
@@ -161,7 +139,7 @@ export function TodoPanel() {
                 style={{ padding: '5px 2px', borderBottom: '1px solid rgba(0,212,255,0.04)' }}
               >
                 <button
-                  onClick={() => toggleTodo(todo.id)}
+                  onClick={() => onToggle(todo.id)}
                   className="flex-shrink-0 mt-0.5 transition-colors"
                   style={{
                     width: 13, height: 13, borderRadius: 2, flexShrink: 0,
@@ -185,7 +163,7 @@ export function TodoPanel() {
                   {todo.text}
                 </span>
                 <button
-                  onClick={() => deleteTodo(todo.id)}
+                  onClick={() => onDelete(todo.id)}
                   className="flex-shrink-0 transition-opacity opacity-20 hover:opacity-60"
                   style={{ color: '#00d4ff', fontSize: '0.75rem', lineHeight: 1, padding: '0 2px' }}
                 >
