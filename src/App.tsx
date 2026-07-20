@@ -4,8 +4,8 @@ import { VoiceOrb } from './components/VoiceOrb';
 import { AgentBehaviorsPanel } from './components/AgentBehaviorsPanel';
 import { EmailPanel } from './components/EmailPanel';
 import { CalendarPanel } from './components/CalendarPanel';
-import { RightIssuesTabs } from './components/RightIssuesTabs';
 import { PitchReviewPanel } from './components/PitchReviewPanel';
+import { AgendaPanel } from './components/AgendaPanel';
 import { usePitchReview } from './hooks/usePitchReview';
 import { ConversationHistory } from './components/ConversationHistory';
 import { MetricsBar } from './components/MetricsBar';
@@ -1283,8 +1283,21 @@ STRICT RULES — FOLLOW EXACTLY:
           </div>
         </div>
 
-        {/* Left: Email + Calendar + Notes — second on mobile (order-2), visual col 1 on desktop (md:order-1) */}
+        {/* Left: Agenda + Email + Calendar + Notes — second on mobile (order-2), visual col 1 on desktop (md:order-1) */}
         <div className="md:flex-[38] min-h-0 desktop-agents-panel flex flex-col gap-3 order-2 md:order-1">
+          {dashboardData && (
+            <div className="flex-[3] min-h-0">
+              <AgendaPanel
+                issues={[
+                  ...dashboardData.inReviewIssues,
+                  ...dashboardData.activeIssues,
+                  ...dashboardData.blockedIssues,
+                  ...dashboardData.waitingOnMeIssues,
+                ]}
+                onRefresh={() => refreshDashboard()}
+              />
+            </div>
+          )}
           <div className="flex-[5] min-h-0 panel-border corner-decoration rounded overflow-hidden">
             <EmailPanel onAction={handleTextSubmit} />
           </div>
