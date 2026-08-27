@@ -2,6 +2,10 @@
 
 Paperclip Intelligence Platform — Vite + React + TypeScript SPA deployed on Vercel with serverless API proxies for Paperclip, Gmail, Google Calendar, and Obsidian Brain.
 
+## Main page
+
+![Jarvis AI Executive Dashboard main page](docs/main-page.png)
+
 ## Wiring live data
 
 All four panels (AGENTS, EMAIL, CALENDAR, BRAIN) fall back to demo data when their Vercel env vars are absent. To enable live data:
