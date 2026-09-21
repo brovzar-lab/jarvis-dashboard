@@ -682,7 +682,14 @@ STRICT RULES — FOLLOW EXACTLY:
   }, []);
 
   const processQuery = useCallback(async (userText: string) => {
-    if (!userText.trim() || isProcessingRef.current) return;
+    if (!userText.trim()) {
+      // Empty recognition result — restart listening if waiting for a pitch verdict
+      if (pitchSessionRef.current.active && pitchSessionRef.current.status === 'awaiting_verdict') {
+        startListeningRef.current();
+      }
+      return;
+    }
+    if (isProcessingRef.current) return;
     updateActivity();
 
     // Intercept execute/cancel when command confirmation is pending
@@ -709,7 +716,7 @@ STRICT RULES — FOLLOW EXACTLY:
           handlePitchVerdict('develop');
         } else if (['resolve', 'resolved', 'archive', 'save it'].some(w => lower.includes(w))) {
           handlePitchVerdict('resolve');
-        } else if (['kill', 'pass', 'no', 'next'].some(w => lower === w || lower.startsWith(w + ' '))) {
+        } else if (lower.includes('kill') || lower.includes('pass') || lower === 'no' || lower.startsWith('no ') || lower.includes('next')) {
           handlePitchVerdict('kill');
         } else if (['repeat', 'say that again'].some(w => lower.includes(w))) {
           pitchCurrent();
@@ -719,7 +726,7 @@ STRICT RULES — FOLLOW EXACTLY:
           const reminder = 'Say develop, resolve, or kill to decide this pitch, sir.';
           addEntry('jarvis', reminder);
           setOrbState('speaking');
-          speak(reminder).then(() => setOrbState('idle'));
+          speak(reminder).then(() => { setOrbState('idle'); startListeningRef.current(); });
         }
         return;
       }
