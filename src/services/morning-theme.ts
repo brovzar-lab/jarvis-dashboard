@@ -11,7 +11,7 @@ let BASE_VOLUME = (() => {
       const v = parseFloat(saved);
       if (!isNaN(v)) return Math.max(0, Math.min(1, v));
     }
-  } catch {}
+  } catch { /* noop */ }
   return 0.42;
 })();
 
@@ -235,6 +235,6 @@ export function getBaseVolume(): number {
 
 export function setBaseVolume(vol: number): void {
   BASE_VOLUME = Math.max(0, Math.min(1, vol));
-  try { localStorage.setItem('jarvis_music_volume', String(BASE_VOLUME)); } catch {}
+  try { localStorage.setItem('jarvis_music_volume', String(BASE_VOLUME)); } catch { /* noop */ }
   if (!fadingOut) fadeTo(computeTargetVolume(), 80);
 }

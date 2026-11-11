@@ -50,7 +50,7 @@ function getRecentLines(): string[] {
 function recordLine(line: string): void {
   const recent = getRecentLines();
   recent.unshift(line);
-  try { localStorage.setItem(RECENT_LINES_KEY, JSON.stringify(recent.slice(0, 5))); } catch {}
+  try { localStorage.setItem(RECENT_LINES_KEY, JSON.stringify(recent.slice(0, 5))); } catch { /* noop */ }
 }
 
 function getLastLane(): string {
@@ -58,7 +58,7 @@ function getLastLane(): string {
 }
 
 function recordLane(lane: string): void {
-  try { localStorage.setItem(LAST_LANE_KEY, lane); } catch {}
+  try { localStorage.setItem(LAST_LANE_KEY, lane); } catch { /* noop */ }
 }
 
 function detectLane(text: string): string {

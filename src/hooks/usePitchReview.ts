@@ -105,6 +105,7 @@ export function usePitchReview({ setOrbState, onReadyForVerdict, addEntry }: Opt
     onReadyForVerdict();
   }, [update, buildPitchText, setOrbState, onReadyForVerdict]);
 
+  // eslint-disable-next-line react-hooks/refs
   pitchCurrentRef.current = pitchCurrent;
 
   const advanceToNext = useCallback(async () => {

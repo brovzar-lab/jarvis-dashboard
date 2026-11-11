@@ -25,7 +25,7 @@ function loadVoiceParams(): TtsVoiceParams {
   try {
     const saved = localStorage.getItem(VOICE_PARAMS_KEY);
     if (saved) return { ...DEFAULT_VOICE_PARAMS, ...(JSON.parse(saved) as Partial<TtsVoiceParams>) };
-  } catch {}
+  } catch { /* noop */ }
   return { ...DEFAULT_VOICE_PARAMS };
 }
 
@@ -33,7 +33,7 @@ let voiceParams: TtsVoiceParams = loadVoiceParams();
 
 export function setVoiceParams(params: Partial<TtsVoiceParams>): void {
   voiceParams = { ...voiceParams, ...params };
-  try { localStorage.setItem(VOICE_PARAMS_KEY, JSON.stringify(voiceParams)); } catch {}
+  try { localStorage.setItem(VOICE_PARAMS_KEY, JSON.stringify(voiceParams)); } catch { /* noop */ }
 }
 
 export function getVoiceParams(): TtsVoiceParams {

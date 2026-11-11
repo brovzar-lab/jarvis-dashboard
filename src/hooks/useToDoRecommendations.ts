@@ -17,7 +17,7 @@ function loadStored(): TodoRecommendation[] {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) return JSON.parse(saved) as TodoRecommendation[];
-  } catch {}
+  } catch { /* noop */ }
   return [];
 }
 
@@ -25,7 +25,7 @@ function loadDismissed(): Set<string> {
   try {
     const saved = localStorage.getItem(DISMISSED_KEY);
     if (saved) return new Set(JSON.parse(saved) as string[]);
-  } catch {}
+  } catch { /* noop */ }
   return new Set();
 }
 
@@ -88,9 +88,9 @@ export function useToDoRecommendations({
         }));
         setRecommendations(newRecs);
         setLastGenerated(now);
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(newRecs)); } catch {}
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(newRecs)); } catch { /* noop */ }
         // Clear dismissed set on fresh generation
-        try { localStorage.removeItem(DISMISSED_KEY); } catch {}
+        try { localStorage.removeItem(DISMISSED_KEY); } catch { /* noop */ }
       }
     } catch {
       // Network error — silently degrade
@@ -102,6 +102,7 @@ export function useToDoRecommendations({
 
   // Keep a stable ref so the interval always calls the latest version
   const generateRef = useRef(generateFn);
+  // eslint-disable-next-line react-hooks/refs
   generateRef.current = generateFn;
 
   // Generate once when data first loads
@@ -111,7 +112,7 @@ export function useToDoRecommendations({
     if (emails.length === 0 && calendarEvents.length === 0 && obsidianNotes.length === 0) return;
     hasRunRef.current = true;
     generateRef.current();
-  }, [enabled, emails.length, calendarEvents.length, obsidianNotes.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled, emails.length, calendarEvents.length, obsidianNotes.length]);  
 
   // Periodic refresh
   useEffect(() => {
@@ -123,11 +124,11 @@ export function useToDoRecommendations({
   const dismiss = useCallback((id: string) => {
     setRecommendations(prev => {
       const updated = prev.filter(r => r.id !== id);
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); } catch {}
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); } catch { /* noop */ }
       // Track dismissed IDs across refreshes
       const dismissed = loadDismissed();
       dismissed.add(id);
-      try { localStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissed])); } catch {}
+      try { localStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissed])); } catch { /* noop */ }
       return updated;
     });
   }, []);

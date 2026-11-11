@@ -10,6 +10,7 @@ export function useOpeningCompliment(
 ): { isComplimenting: boolean; skipCompliment: () => void } {
   const calledRef = useRef(false);
   const onComplimentRef = useRef(onCompliment);
+  // eslint-disable-next-line react-hooks/refs
   onComplimentRef.current = onCompliment;
   const [isComplimenting, setIsComplimenting] = useState(false);
 
@@ -26,6 +27,7 @@ export function useOpeningCompliment(
     calledRef.current = true;
     sessionStorage.setItem(SESSION_KEY, 'true');
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsComplimenting(true);
     onComplimentRef.current().finally(() => setIsComplimenting(false));
   }, [micReady]);

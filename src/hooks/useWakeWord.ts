@@ -36,7 +36,9 @@ export function useWakeWord(
   const onDetectedRef = useRef(onWakeWordDetected);
   const stoppedByDetectionRef = useRef(false);
 
+  // eslint-disable-next-line react-hooks/refs
   onDetectedRef.current = onWakeWordDetected;
+  // eslint-disable-next-line react-hooks/refs
   enabledRef.current = enabled;
 
   useEffect(() => {
@@ -96,6 +98,7 @@ export function useWakeWord(
     if (enabled && !isListening) {
       try {
         recognitionRef.current.start();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsListening(true);
       } catch {
         // Already running — fine

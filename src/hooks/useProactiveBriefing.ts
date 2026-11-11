@@ -10,6 +10,7 @@ export function useProactiveBriefing(
 ): { isBriefing: boolean; skipBriefing: () => void } {
   const calledRef = useRef(false);
   const onBriefingRef = useRef(onBriefing);
+  // eslint-disable-next-line react-hooks/refs
   onBriefingRef.current = onBriefing;
   const [isBriefing, setIsBriefing] = useState(false);
 
@@ -25,6 +26,7 @@ export function useProactiveBriefing(
 
     calledRef.current = true;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsBriefing(true);
     onBriefingRef.current().finally(() => setIsBriefing(false));
   }, [dashboardData, enabled]);

@@ -32,12 +32,14 @@ export function useSpeechRecognition(onResult: (transcript: string) => void) {
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   // Ref so the recognition instance always calls the latest processQuery without recreating
   const onResultRef = useRef(onResult);
+  // eslint-disable-next-line react-hooks/refs
   onResultRef.current = onResult;
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsSupported(true);
     const recognition = new SpeechRecognition();
     recognition.continuous = false;

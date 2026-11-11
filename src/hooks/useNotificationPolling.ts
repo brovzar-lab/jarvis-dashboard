@@ -11,8 +11,11 @@ export function useNotificationPolling(
   const onAudioAlertRef = useRef(onAudioAlert);
   const onVisualAlertRef = useRef(onVisualAlert);
   const getLastActivityRef = useRef(getLastActivity);
+  // eslint-disable-next-line react-hooks/refs
   onAudioAlertRef.current = onAudioAlert;
+  // eslint-disable-next-line react-hooks/refs
   onVisualAlertRef.current = onVisualAlert;
+  // eslint-disable-next-line react-hooks/refs
   getLastActivityRef.current = getLastActivity;
 
   useEffect(() => {

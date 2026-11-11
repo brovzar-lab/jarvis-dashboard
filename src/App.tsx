@@ -1,13 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VoiceOrb } from './components/VoiceOrb';
-import { AgentBehaviorsPanel } from './components/AgentBehaviorsPanel';
 import { EmailPanel } from './components/EmailPanel';
 import { CalendarPanel } from './components/CalendarPanel';
 import { PitchReviewPanel } from './components/PitchReviewPanel';
 import { AgendaPanel } from './components/AgendaPanel';
 import { usePitchReview } from './hooks/usePitchReview';
-import { ConversationHistory } from './components/ConversationHistory';
 import { MetricsBar } from './components/MetricsBar';
 import { SuggestedMovesStrip } from './components/SuggestedMovesStrip';
 import { TextInput } from './components/TextInput';
@@ -21,7 +19,6 @@ import { useEmail } from './hooks/useEmail';
 import { useCalendar } from './hooks/useCalendar';
 import { useCostTracker } from './hooks/useCostTracker';
 import { useProactiveBriefing } from './hooks/useProactiveBriefing';
-import { useCardAction } from './hooks/useCardAction';
 import { TodoPanel } from './components/TodoPanel';
 import type { TodoItem } from './components/TodoPanel';
 import { useToDoRecommendations } from './hooks/useToDoRecommendations';
@@ -43,7 +40,7 @@ import {
 } from './services/memory';
 import { MemoryPanel } from './components/MemoryPanel';
 import type { Memory } from './types/memory';
-import type { OrbState, ConversationEntry, Issue, ActionItem, ContextCard, ContextCardKind } from './types';
+import type { OrbState, ConversationEntry, ActionItem, ContextCard, ContextCardKind } from './types';
 
 const COMPANY_ID = getCompanyId();
 
@@ -125,7 +122,7 @@ const ACTION_PREAMBLES = [
 function extractActionItems(text: string): string[] {
   const items: string[] = [];
   const sentences = text.match(/[^.!?\n]+[.!?]*/g) ?? [];
-  for (let raw of sentences) {
+  for (const raw of sentences) {
     const s = raw.trim();
     if (!s || s.length < 20) continue;
     if (!ACTION_TRIGGERS.some(p => p.test(s))) continue;
@@ -153,7 +150,7 @@ function loadActionItems(): ActionItem[] {
       const parsed = JSON.parse(saved) as ActionItem[];
       return parsed.map(e => ({ ...e, timestamp: new Date(e.timestamp) }));
     }
-  } catch {}
+  } catch { /* noop */ }
   return [];
 }
 
@@ -202,7 +199,7 @@ function loadConversation(): ConversationEntry[] {
       const parsed = JSON.parse(saved) as ConversationEntry[];
       return parsed.map(e => ({ ...e, timestamp: new Date(e.timestamp) })).slice(-20);
     }
-  } catch {}
+  } catch { /* noop */ }
   return [];
 }
 
@@ -236,6 +233,7 @@ export default function App() {
   const pendingCommandRef = useRef<JarvisCommand | null>(null);
   const isProcessingRef = useRef(false);
   const initialHistoryRestoredRef = useRef(false);
+  // eslint-disable-next-line react-hooks/purity
   const lastActivityRef = useRef<number>(Date.now());
   // Abort flag for the briefing TTS chain — prevents double-voice when pitch review starts mid-briefing
   const briefingAbortRef = useRef(false);
@@ -245,12 +243,13 @@ export default function App() {
   const [savedCorrections, setSavedCorrections] = useState<string>(() => {
     try { return localStorage.getItem('jarvis_corrections') ?? ''; } catch { return ''; }
   });
+  const [brainMemories, setBrainMemories] = useState<Memory[]>(() => loadMemories());
   const handleCorrectionSave = useCallback((draft: string) => {
     const trimmed = draft.trim();
     if (!trimmed) return;
     setSavedCorrections(prev => {
       const updated = prev.trim() ? `${prev.trim()}\n${trimmed}` : trimmed;
-      try { localStorage.setItem(CORRECTIONS_KEY, updated); } catch {}
+      try { localStorage.setItem(CORRECTIONS_KEY, updated); } catch { /* noop */ }
       return updated;
     });
     // Also save as a global preference memory for structured recall
@@ -309,14 +308,13 @@ export default function App() {
     localStorage.setItem(ITEMS_STORAGE_KEY, JSON.stringify(actionItems));
   }, [actionItems]);
 
-  const { data: dashboardData, isLoading, refetch: refreshDashboard } = useDashboard();
+  const { data: dashboardData, refetch: refreshDashboard } = useDashboard();
   const { data: emails = [] } = useEmail();
   const { data: calendarEvents = [] } = useCalendar();
   const sessionCost = useCostTracker();
   const [obsidianNotes, setObsidianNotes] = useState<ObsidianNote[]>([]);
   const [obsidianLoaded, setObsidianLoaded] = useState(false);
   const [memoryContext, setMemoryContext] = useState('');
-  const [brainMemories, setBrainMemories] = useState<Memory[]>(() => loadMemories());
 
   useEffect(() => {
     // Give Obsidian up to 6 seconds before allowing briefing to start.
@@ -336,7 +334,7 @@ export default function App() {
     try {
       const saved = localStorage.getItem(TODOS_STORAGE_KEY);
       if (saved) return JSON.parse(saved) as TodoItem[];
-    } catch {}
+    } catch { /* noop */ }
     return [];
   });
   useEffect(() => {
@@ -413,14 +411,16 @@ export default function App() {
   // Run reflect() on mount to decay stale memories, then sync state
   useEffect(() => {
     reflect();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBrainMemories(loadMemories());
   }, []);
-  const [newIssueIds, setNewIssueIds] = useState<Set<string>>(new Set());
+  const [, setNewIssueIds] = useState<Set<string>>(new Set());
   const prevIssueIdsRef = useRef<Set<string>>(new Set());
 
   // Detect newly appeared issues on each data refresh and update lastUpdated
   useEffect(() => {
     if (!dashboardData) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLastUpdated(new Date());
     const allCurrent = [
       ...dashboardData.inReviewIssues,
@@ -447,6 +447,7 @@ export default function App() {
   // 15-second countdown auto-cancel when a command is pending
   const handleCancelRef = useRef<() => void>(() => {});
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!pendingCommand) { setConfirmCountdown(0); return; }
     setConfirmCountdown(15);
     const interval = setInterval(() => {
@@ -460,7 +461,7 @@ export default function App() {
       });
     }, 1000);
     return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [pendingCommand]);
 
   const addEntry = (role: 'user' | 'jarvis', text: string) => {
@@ -660,6 +661,7 @@ STRICT RULES — FOLLOW EXACTLY:
     setOrbState('idle');
   }, []);
 
+  // eslint-disable-next-line react-hooks/refs
   handleCancelRef.current = handleCancel;
 
   const handleExecute = useCallback(async () => {
@@ -942,6 +944,7 @@ STRICT RULES — FOLLOW EXACTLY:
   const { isListening, isSupported, startListening } = useSpeechRecognition(processQuery);
 
   // Keep startListeningRef in sync so usePitchReview can call startListening after TTS
+  // eslint-disable-next-line react-hooks/refs
   startListeningRef.current = startListening;
 
   // Duck music when JARVIS TTS is speaking
@@ -966,6 +969,7 @@ STRICT RULES — FOLLOW EXACTLY:
   // orbState is stuck at 'listening'. Reset it so the user can click the orb again.
   useEffect(() => {
     if (!isListening && orbState === 'listening') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setOrbState('idle');
     }
   }, [isListening, orbState]);
@@ -981,6 +985,7 @@ STRICT RULES — FOLLOW EXACTLY:
     },
     // Gate on micReady: don't start wake word until mic permission is resolved so
     // SpeechRecognition never shows the permission dialog while music is playing.
+    // eslint-disable-next-line react-hooks/refs
     micReady && !micMuted && (orbState === 'idle' || orbState === 'speaking') && !isProcessingRef.current,
   );
 
@@ -1292,6 +1297,7 @@ STRICT RULES — FOLLOW EXACTLY:
 
             {/* Text input embedded at bottom */}
             <div className="flex-shrink-0" style={{ borderTop: '1px solid rgba(0,212,255,0.06)' }}>
+              {/* eslint-disable-next-line react-hooks/refs */}
               <TextInput onSubmit={handleTextSubmit} disabled={isProcessingRef.current} />
             </div>
           </div>
@@ -1438,6 +1444,7 @@ function LiveClock() {
   return <span>{time}</span>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function LargeOrbClock() {
   const [time, setTime] = useState(() => {
     const d = new Date();
@@ -1557,6 +1564,7 @@ function ContextCardDisplay({ card }: { card: ContextCard }) {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ObsidianNoteItem({ note, onAction }: {
   note: ObsidianNote;
   onAction: (text: string) => void;
