@@ -147,8 +147,11 @@ function loadActionItems(): ActionItem[] {
   try {
     const saved = localStorage.getItem(ITEMS_STORAGE_KEY);
     if (saved) {
+      const todayStr = new Date().toLocaleDateString('sv');
       const parsed = JSON.parse(saved) as ActionItem[];
-      return parsed.map(e => ({ ...e, timestamp: new Date(e.timestamp) }));
+      return parsed
+        .map(e => ({ ...e, timestamp: new Date(e.timestamp) }))
+        .filter(e => new Date(e.timestamp).toLocaleDateString('sv') === todayStr);
     }
   } catch { /* noop */ }
   return [];
@@ -333,7 +336,12 @@ export default function App() {
   const [todos, setTodos] = useState<TodoItem[]>(() => {
     try {
       const saved = localStorage.getItem(TODOS_STORAGE_KEY);
-      if (saved) return JSON.parse(saved) as TodoItem[];
+      if (saved) {
+        const todayMs = new Date().setHours(0, 0, 0, 0);
+        const parsed = JSON.parse(saved) as TodoItem[];
+        // Drop done todos from before today so stale completed items don't accumulate
+        return parsed.filter(t => !t.done || t.timestamp >= todayMs);
+      }
     } catch { /* noop */ }
     return [];
   });
