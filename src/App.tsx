@@ -1074,6 +1074,12 @@ STRICT RULES — FOLLOW EXACTLY:
           >
             J.A.R.V.I.S
           </motion.div>
+          <span
+            className="tracking-widest px-1.5 py-0.5"
+            style={{ color: '#00d4ff', border: '1px solid rgba(0,212,255,0.3)', fontSize: '0.42rem', borderRadius: 2, opacity: 0.7 }}
+          >
+            V2.0
+          </span>
           <div className="text-xs text-jarvis-dim tracking-widest hidden md:block">
             EXECUTIVE AI SYSTEM · PAPERCLIP INTELLIGENCE PLATFORM
           </div>
@@ -1425,7 +1431,16 @@ function LaunchScreen({ onLaunch }: { onLaunch: () => void }) {
         <div className="tracking-widest text-center" style={{ color: '#1a4060', fontSize: 'clamp(0.55rem, 1.5vw, 0.7rem)', letterSpacing: '0.3em' }}>
           EXECUTIVE AI SYSTEM · PAPERCLIP INTELLIGENCE PLATFORM
         </div>
-        <div style={{ height: 1, width: 120, background: 'rgba(0,212,255,0.15)' }} />
+        <div className="flex items-center gap-3">
+          <div style={{ height: 1, width: 60, background: 'rgba(0,212,255,0.15)' }} />
+          <span className="tracking-widest px-2 py-0.5" style={{ color: '#00d4ff', border: '1px solid rgba(0,212,255,0.3)', fontSize: 'clamp(0.5rem, 1.2vw, 0.65rem)', borderRadius: 2, opacity: 0.7 }}>
+            V2.0
+          </span>
+          <div style={{ height: 1, width: 60, background: 'rgba(0,212,255,0.15)' }} />
+        </div>
+        <div className="tracking-widest text-center" style={{ color: '#2a6080', fontSize: 'clamp(0.5rem, 1.2vw, 0.62rem)', letterSpacing: '0.25em' }}>
+          {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase()}
+        </div>
         <motion.div
           animate={{ opacity: [0.3, 1, 0.3] }}
           transition={{ duration: 1.8, repeat: Infinity }}

@@ -114,9 +114,12 @@ export function MetricsBar({ data, lastUpdated, sessionCost, visualAlerts = [], 
         </>
       )}
       <div className="ml-auto flex items-center gap-2">
-        <span className="text-jarvis-dim">LAST SYNC</span>
-        <span style={{ color: '#2a5f80' }}>
-          {secsAgo < 60 ? `${secsAgo}s AGO` : `${Math.floor(secsAgo / 60)}m AGO`}
+        <span className="text-jarvis-dim">DATA AS OF</span>
+        <span style={{ color: '#2a5f80' }} title={lastUpdated.toLocaleString()}>
+          {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          <span className="ml-1 opacity-50 text-xs" style={{ fontSize: '0.6rem' }}>
+            ({secsAgo < 60 ? `${secsAgo}s` : `${Math.floor(secsAgo / 60)}m`} AGO)
+          </span>
         </span>
       </div>
     </div>
