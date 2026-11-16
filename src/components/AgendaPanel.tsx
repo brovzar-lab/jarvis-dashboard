@@ -22,13 +22,13 @@ const STATUS_LABELS: Record<string, string> = {
   blocked: 'BLOCKED',
 };
 
-// Filter out APPU issues to reduce noise; keep only LEMA and other non-internal items,
-// plus any critical/high APPU items so nothing truly urgent is hidden
 function filterAgenda(issues: Issue[]): Issue[] {
+  // Deduplicate by ID — an issue may appear in multiple categories (in_review + waitingOnMe)
+  const seen = new Set<string>();
   return issues.filter(i => {
-    const isAppu = /^APPU-/i.test(i.identifier ?? '');
-    if (!isAppu) return true;
-    return i.priority === 'critical' || i.priority === 'high';
+    if (seen.has(i.id)) return false;
+    seen.add(i.id);
+    return true;
   });
 }
 
@@ -93,18 +93,11 @@ export function AgendaPanel({ issues, onRefresh }: Props) {
   const sorted = [...filtered].sort(
     (a, b) => (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99)
   );
-  const hiddenCount = issues.length - filtered.length;
-
   return (
     <div className="panel-border corner-decoration rounded p-4 h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs tracking-widest text-jarvis">TODAY'S AGENDA</span>
         <div className="flex items-center gap-2">
-          {hiddenCount > 0 && (
-            <span className="text-xs text-jarvis-dim" style={{ fontSize: '0.55rem' }}>
-              +{hiddenCount} APPU hidden
-            </span>
-          )}
           <span className="text-xs text-jarvis-dim">{sorted.length} TASKS</span>
         </div>
       </div>

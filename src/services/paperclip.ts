@@ -117,7 +117,9 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   // Pitches awaiting Billy's verdict have billyVerdict === null.
   // Each project has structured pitch fields: pitchSynopsis, genre, format, comps, etc.
   let lemaPitches: Issue[] = [];
-  if (companyIds.includes(LEMA_COMPANY_ID)) {
+  // Always try to fetch LEMA pitches — the proxy uses PAPERCLIP_API_KEY_FF52AD91 if set,
+  // falls back to default key. If the request fails (no key/access), catch returns empty.
+  {
     try {
       interface LemaProject {
         id: string;
